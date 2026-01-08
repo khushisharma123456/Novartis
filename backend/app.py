@@ -13,6 +13,14 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 CORS(app)
 db.init_app(app)
 
+# Import agent integration module
+from agent_integration import (
+    initialize_data_quality_agent,
+    process_patient_with_agent,
+    handle_doctor_correction,
+    trigger_whatsapp_followup
+)
+
 # Create tables
 with app.app_context():
     db.create_all()
@@ -361,6 +369,110 @@ def mark_alert_read(alert_id):
     except Exception as e:
         print(f"ERROR marking alert read: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
+
+# =============================================================================
+# 🤖 DATA QUALITY AGENT ENDPOINTS
+# =============================================================================
+
+@app.route('/api/agent/validate-patient/<patient_id>', methods=['POST'])
+def validate_patient_data(patient_id):
+    """
+    Run DataQualityAgent validation on a patient
+    Triggers alerts and dashboard updates automatically
+    """
+    if session.get('role') not in ['doctor', 'pharma']:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    try:
+        report = process_patient_with_agent(patient_id, app)
+        
+        if report:
+            return jsonify({
+                'success': True,
+                'report': {
+                    'patient_token': report['patient_token'],
+                    'data_quality_level': report['data_quality_level'],
+                    'data_quality_score': report['data_quality_score'],
+                    'safety_risk_level': report['safety_risk_level'],
+                    'patient_status': report['patient_status'],
+                    'validation_issues_count': len(report['validation_issues']),
+                    'alerts_generated': len(report['safety_alerts']),
+                    'requires_review': report['requires_doctor_review']
+                }
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Validation failed'}), 500
+            
+    except Exception as e:
+        print(f"ERROR validating patient: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/agent/doctor-update/<patient_id>', methods=['POST'])
+def doctor_update_patient(patient_id):
+    """
+    Allow doctor to correct patient data
+    Agent will re-validate and update dashboard
+    """
+    if session.get('role') != 'doctor':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    try:
+        data = request.json
+        
+        updated_report = handle_doctor_correction(
+            patient_id=patient_id,
+            field=data['field'],
+            old_value=data['oldValue'],
+            new_value=data['newValue'],
+            doctor_id=session['user_id'],
+            notes=data.get('notes', ''),
+            app=app
+        )
+        
+        if updated_report:
+            return jsonify({
+                'success': True,
+                'message': 'Patient data updated and re-validated',
+                'new_quality_level': updated_report['data_quality_level'],
+                'new_risk_level': updated_report['safety_risk_level']
+            })
+        else:
+            return jsonify({'success': False, 'message': 'Update failed'}), 500
+            
+    except Exception as e:
+        print(f"ERROR in doctor update: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/agent/whatsapp-followup/<patient_id>', methods=['POST'])
+def whatsapp_followup(patient_id):
+    """
+    Trigger WhatsApp follow-up conversation for a patient
+    Connects to agentBackend.py
+    """
+    if session.get('role') != 'doctor':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    try:
+        success = trigger_whatsapp_followup(patient_id, app)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': f'WhatsApp follow-up initiated for patient {patient_id}'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to initiate WhatsApp follow-up'
+            }), 500
+            
+    except Exception as e:
+        print(f"ERROR in WhatsApp follow-up: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# =============================================================================
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
