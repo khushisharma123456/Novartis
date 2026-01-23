@@ -26,6 +26,7 @@ export class Sidebar extends HTMLElement {
         const doctorItems = [
             { icon: 'home', text: 'Dashboard', link: '/doctor/dashboard' },
             { icon: 'users', text: 'My Patients', link: '/doctor/patients' },
+            { icon: 'file-plus-2', text: 'Report Experience', link: '/doctor/report' },
             { icon: 'alert-triangle', text: 'Alerts', link: '/doctor/alerts' },
             { icon: 'shield-alert', text: 'Drug Warnings', link: '/doctor/warnings' },
         ];

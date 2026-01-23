@@ -55,6 +55,12 @@ def doctor_warnings():
         return redirect(url_for('login_page'))
     return render_template('doctor/warnings.html')
 
+@app.route('/doctor/report')
+def doctor_report():
+    if 'user_id' not in session or session.get('role') != 'doctor':
+        return redirect(url_for('login_page'))
+    return render_template('doctor/report.html')
+
 @app.route('/pharma/dashboard')
 def pharma_dashboard():
     if 'user_id' not in session or session.get('role') != 'pharma':
@@ -360,6 +366,128 @@ def mark_alert_read(alert_id):
         return jsonify({'success': True})
     except Exception as e:
         print(f"ERROR marking alert read: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+# --- Excel Upload and Analysis API ---
+
+@app.route('/api/excel/analyze', methods=['POST'])
+def analyze_excel():
+    """Analyze uploaded Excel file for missing PV data fields"""
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': 'No file uploaded'}), 400
+    
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'No file selected'}), 400
+    
+    if not file.filename.endswith(('.xlsx', '.xls')):
+        return jsonify({'success': False, 'message': 'Invalid file type. Use .xlsx or .xls'}), 400
+    
+    try:
+        import pandas as pd
+        
+        # Read Excel file
+        df = pd.read_excel(file)
+        
+        # Define required and optional fields for PV
+        required_fields = ['patient_identifier', 'drug_name']
+        optional_fields = ['drug_code', 'indication', 'dosage', 'route', 'start_date', 
+                          'event_date', 'observed_events', 'outcome']
+        
+        # Normalize column names (handle both underscore and space versions)
+        df.columns = df.columns.str.lower().str.replace(' ', '_')
+        
+        total_records = len(df)
+        analysis = {
+            'total_records': total_records,
+            'complete_records': 0,
+            'records_with_missing_required': 0,
+            'records_with_missing_optional': 0,
+            'missing_by_field': {},
+            'field_completeness': {},
+            'preview_data': df.head(50).to_dict(orient='records')
+        }
+        
+        # Analyze each field
+        all_fields = required_fields + optional_fields
+        for field in all_fields:
+            if field in df.columns:
+                missing_count = df[field].isna().sum() + (df[field] == '').sum()
+                analysis['missing_by_field'][field] = int(missing_count)
+                analysis['field_completeness'][field] = round((total_records - missing_count) / total_records * 100, 1)
+            else:
+                analysis['missing_by_field'][field] = total_records
+                analysis['field_completeness'][field] = 0.0
+        
+        # Count records by completeness
+        for idx, row in df.iterrows():
+            has_all_required = True
+            missing_optional = 0
+            
+            for field in required_fields:
+                if field not in df.columns or pd.isna(row.get(field)) or row.get(field) == '':
+                    has_all_required = False
+                    break
+            
+            for field in optional_fields:
+                if field not in df.columns or pd.isna(row.get(field)) or row.get(field) == '':
+                    missing_optional += 1
+            
+            if has_all_required:
+                analysis['complete_records'] += 1
+            else:
+                analysis['records_with_missing_required'] += 1
+            
+            if missing_optional > 0:
+                analysis['records_with_missing_optional'] += 1
+        
+        return jsonify({
+            'success': True,
+            'analysis': analysis
+        })
+        
+    except Exception as e:
+        print(f"ERROR analyzing Excel: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/excel/template', methods=['GET'])
+def get_excel_template():
+    """Generate and download PV data template"""
+    try:
+        import pandas as pd
+        from io import BytesIO
+        from flask import send_file
+        
+        # Create template with sample data
+        template_data = {
+            'patient_identifier': ['P001', 'P002'],
+            'drug_name': ['Aspirin', 'Ibuprofen'],
+            'drug_code': ['NDC-12345', 'NDC-67890'],
+            'indication': ['Pain management', 'Inflammation'],
+            'dosage': ['500mg daily', '200mg twice daily'],
+            'route': ['oral', 'oral'],
+            'start_date': ['2024-01-01', '2024-01-15'],
+            'event_date': ['2024-01-15', '2024-01-20'],
+            'observed_events': ['No adverse events', 'Mild nausea'],
+            'outcome': ['ongoing', 'recovered']
+        }
+        
+        df = pd.DataFrame(template_data)
+        
+        # Save to bytes buffer
+        output = BytesIO()
+        df.to_excel(output, index=False, sheet_name='Drug Experiences')
+        output.seek(0)
+        
+        return send_file(
+            output,
+            mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            as_attachment=True,
+            download_name='pv_template.xlsx'
+        )
+        
+    except Exception as e:
+        print(f"ERROR generating template: {e}")
         return jsonify({'success': False, 'message': str(e)}), 500
 
 if __name__ == '__main__':

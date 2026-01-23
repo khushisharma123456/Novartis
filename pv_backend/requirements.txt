@@ -1,0 +1,16 @@
+# Pharmacovigilance Backend - Requirements
+
+# Flask and extensions
+flask>=3.0.0
+flask-cors>=4.0.0
+flask-sqlalchemy>=3.1.0
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary>=2.9.0  # PostgreSQL adapter
+
+# Authentication
+pyjwt>=2.8.0
+
+# Utilities
+python-dateutil>=2.8.0
