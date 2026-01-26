@@ -379,8 +379,8 @@ Example format:
                 # Process through normalization pipeline
                 normalized = NormalizationService.normalize_event(event)
                 
-                # Link to case
-                case = CaseLinkingService.link_event_to_case(event)
+                # Link to case (pass both event and normalized)
+                case, linking_log = CaseLinkingService.link_event_to_case(event, normalized, user)
                 
                 # Update case score
                 if case:
