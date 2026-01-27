@@ -8,7 +8,7 @@ ENHANCED Database Population Script for Novartis MedSafe Platform
 """
 
 from app import app, db
-from models import User, Drug, Patient, Alert
+from models import User, Drug, Patient, Alert, hospital_doctor, hospital_drug, hospital_pharmacy
 from datetime import datetime, timedelta
 import random
 import pandas as pd
@@ -306,68 +306,152 @@ def export_to_excel(companies, doctors, hospitals, pharmacies, drugs, patients, 
     
     excel_file = 'C:\\Users\\SONUR\\projects\\Novartis\\complete_database_enhanced.xlsx'
     
-    with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
-        # Companies
-        pd.DataFrame([{
-            'ID': c.id, 'Name': c.name, 'Email': c.email, 'Password': c.password,
-            'Drugs': len([d for d in drugs if d.company_id == c.id])
-        } for c in companies]).to_excel(writer, sheet_name='Pharma Companies', index=False)
+    try:
+        with pd.ExcelWriter(excel_file, engine='openpyxl') as writer:
+            # Companies
+            pd.DataFrame([{
+                'ID': c.id, 'Name': c.name, 'Email': c.email, 'Password': c.password,
+                'Drugs': len([d for d in drugs if d.company_id == c.id])
+            } for c in companies]).to_excel(writer, sheet_name='Pharma Companies', index=False)
+            
+            # Doctors
+            pd.DataFrame([{
+                'ID': d.id, 'Name': d.name, 'Email': d.email, 'Password': d.password,
+                'Patients': len([p for p in patients if d in p.doctors])
+            } for d in doctors]).to_excel(writer, sheet_name='Doctors', index=False)
+            
+            # Hospitals with relationships
+            hospital_data = []
+            for h in hospitals:
+                # Get doctors registered under this hospital
+                hospital_doctors = db.session.query(User).join(hospital_doctor).filter(
+                    hospital_doctor.c.hospital_id == h.id
+                ).all()
+                
+                # Get drugs in use
+                hospital_drugs = db.session.query(Drug).join(hospital_drug).filter(
+                    hospital_drug.c.hospital_id == h.id
+                ).all()
+                
+                # Get pharmacies in contact
+                hospital_pharmacies = db.session.query(User).join(hospital_pharmacy).filter(
+                    hospital_pharmacy.c.hospital_id == h.id,
+                    User.role == 'pharmacy'
+                ).all()
+                
+                hospital_data.append({
+                    'ID': h.id,
+                    'Name': h.name,
+                    'Email': h.email,
+                    'Password': h.password,
+                    'Doctors': len(hospital_doctors),
+                    'Drugs_In_Use': len(hospital_drugs),
+                    'Pharmacies': len(hospital_pharmacies)
+                })
+            
+            pd.DataFrame(hospital_data).to_excel(writer, sheet_name='Hospitals', index=False)
+            
+            # Hospital-Doctor Relationships
+            hospital_doctor_data = []
+            for h in hospitals:
+                hospital_doctors = db.session.query(User).join(hospital_doctor).filter(
+                    hospital_doctor.c.hospital_id == h.id
+                ).all()
+                for doc in hospital_doctors:
+                    hospital_doctor_data.append({
+                        'Hospital_ID': h.id,
+                        'Hospital_Name': h.name,
+                        'Doctor_ID': doc.id,
+                        'Doctor_Name': doc.name,
+                        'Doctor_Email': doc.email
+                    })
+            
+            pd.DataFrame(hospital_doctor_data).to_excel(writer, sheet_name='Hospital-Doctors', index=False)
+            
+            # Hospital-Drug Relationships
+            hospital_drug_data = []
+            for h in hospitals:
+                hospital_drugs = db.session.query(Drug).join(hospital_drug).filter(
+                    hospital_drug.c.hospital_id == h.id
+                ).all()
+                for drug in hospital_drugs:
+                    hospital_drug_data.append({
+                        'Hospital_ID': h.id,
+                        'Hospital_Name': h.name,
+                        'Drug_ID': drug.id,
+                        'Drug_Name': drug.name,
+                        'Company': drug.company.name
+                    })
+            
+            pd.DataFrame(hospital_drug_data).to_excel(writer, sheet_name='Hospital-Drugs', index=False)
+            
+            # Hospital-Pharmacy Relationships
+            hospital_pharmacy_data = []
+            for h in hospitals:
+                hospital_pharmacies = db.session.query(User).join(hospital_pharmacy).filter(
+                    hospital_pharmacy.c.hospital_id == h.id
+                ).all()
+                for pharm in hospital_pharmacies:
+                    hospital_pharmacy_data.append({
+                        'Hospital_ID': h.id,
+                        'Hospital_Name': h.name,
+                        'Pharmacy_ID': pharm.id,
+                        'Pharmacy_Name': pharm.name,
+                        'Pharmacy_Email': pharm.email
+                    })
+            
+            pd.DataFrame(hospital_pharmacy_data).to_excel(writer, sheet_name='Hospital-Pharmacies', index=False)
+            
+            # Pharmacies
+            pd.DataFrame([{
+                'ID': p.id, 'Name': p.name, 'Email': p.email, 'Password': p.password
+            } for p in pharmacies]).to_excel(writer, sheet_name='Pharmacies', index=False)
+            
+            # Drugs
+            pd.DataFrame([{
+                'ID': d.id, 'Name': d.name, 'Company': d.company.name,
+                'Description': d.description, 'Risk': d.ai_risk_assessment
+            } for d in drugs]).to_excel(writer, sheet_name='Drugs', index=False)
+            
+            # Patients
+            pd.DataFrame([{
+                'ID': p.id, 'Name': p.name, 'Age': p.age, 'Gender': p.gender,
+                'Phone': p.phone, 'Drug': p.drug_name, 'Symptoms': p.symptoms,
+                'Risk': p.risk_level, 'Doctor': User.query.get(p.created_by).name,
+                'Date': p.created_at.strftime('%Y-%m-%d')
+            } for p in patients]).to_excel(writer, sheet_name='Patients', index=False)
+            
+            # Alerts
+            pd.DataFrame([{
+                'ID': a.id, 'Drug': a.drug_name, 'Message': a.message,
+                'Severity': a.severity, 'Company': a.sender.name,
+                'Date': a.created_at.strftime('%Y-%m-%d')
+            } for a in alerts]).to_excel(writer, sheet_name='Alerts', index=False)
+            
+            # Summary
+            pd.DataFrame([
+                {'Metric': 'Pharma Companies', 'Value': len(companies)},
+                {'Metric': 'Doctors', 'Value': len(doctors)},
+                {'Metric': 'Hospitals', 'Value': len(hospitals)},
+                {'Metric': 'Pharmacies', 'Value': len(pharmacies)},
+                {'Metric': 'Total Drugs', 'Value': len(drugs)},
+                {'Metric': 'Total Patients', 'Value': len(patients)},
+                {'Metric': 'High Risk Patients', 'Value': len([p for p in patients if p.risk_level == 'High'])},
+                {'Metric': 'Total Alerts', 'Value': len(alerts)},
+                {'Metric': 'Critical Alerts', 'Value': len([a for a in alerts if a.severity == 'Critical'])}
+            ]).to_excel(writer, sheet_name='Summary', index=False)
+            
+            # All Login Credentials
+            all_users = companies + doctors + hospitals + pharmacies
+            pd.DataFrame([{
+                'Role': u.role.upper(), 'Name': u.name, 'Email': u.email, 'Password': u.password
+            } for u in all_users]).to_excel(writer, sheet_name='All Credentials', index=False)
         
-        # Doctors
-        pd.DataFrame([{
-            'ID': d.id, 'Name': d.name, 'Email': d.email, 'Password': d.password,
-            'Patients': len([p for p in patients if d in p.doctors])
-        } for d in doctors]).to_excel(writer, sheet_name='Doctors', index=False)
-        
-        # Hospitals
-        pd.DataFrame([{
-            'ID': h.id, 'Name': h.name, 'Email': h.email, 'Password': h.password
-        } for h in hospitals]).to_excel(writer, sheet_name='Hospitals', index=False)
-        
-        # Pharmacies
-        pd.DataFrame([{
-            'ID': p.id, 'Name': p.name, 'Email': p.email, 'Password': p.password
-        } for p in pharmacies]).to_excel(writer, sheet_name='Pharmacies', index=False)
-        
-        # Drugs
-        pd.DataFrame([{
-            'ID': d.id, 'Name': d.name, 'Company': d.company.name,
-            'Description': d.description, 'Risk': d.ai_risk_assessment
-        } for d in drugs]).to_excel(writer, sheet_name='Drugs', index=False)
-        
-        # Patients
-        pd.DataFrame([{
-            'ID': p.id, 'Name': p.name, 'Age': p.age, 'Gender': p.gender,
-            'Phone': p.phone, 'Drug': p.drug_name, 'Symptoms': p.symptoms,
-            'Risk': p.risk_level, 'Doctor': User.query.get(p.created_by).name,
-            'Date': p.created_at.strftime('%Y-%m-%d')
-        } for p in patients]).to_excel(writer, sheet_name='Patients', index=False)
-        
-        # Alerts
-        pd.DataFrame([{
-            'ID': a.id, 'Drug': a.drug_name, 'Message': a.message,
-            'Severity': a.severity, 'Company': a.sender.name,
-            'Date': a.created_at.strftime('%Y-%m-%d')
-        } for a in alerts]).to_excel(writer, sheet_name='Alerts', index=False)
-        
-        # Summary
-        pd.DataFrame([
-            {'Metric': 'Pharma Companies', 'Value': len(companies)},
-            {'Metric': 'Doctors', 'Value': len(doctors)},
-            {'Metric': 'Hospitals', 'Value': len(hospitals)},
-            {'Metric': 'Pharmacies', 'Value': len(pharmacies)},
-            {'Metric': 'Total Drugs', 'Value': len(drugs)},
-            {'Metric': 'Total Patients', 'Value': len(patients)},
-            {'Metric': 'High Risk Patients', 'Value': len([p for p in patients if p.risk_level == 'High'])},
-            {'Metric': 'Total Alerts', 'Value': len(alerts)},
-            {'Metric': 'Critical Alerts', 'Value': len([a for a in alerts if a.severity == 'Critical'])}
-        ]).to_excel(writer, sheet_name='Summary', index=False)
-        
-        # All Login Credentials
-        all_users = companies + doctors + hospitals + pharmacies
-        pd.DataFrame([{
-            'Role': u.role.upper(), 'Name': u.name, 'Email': u.email, 'Password': u.password
-        } for u in all_users]).to_excel(writer, sheet_name='All Credentials', index=False)
+        print(f"✓ Excel exported: {excel_file}")
+        return excel_file
+    except PermissionError:
+        print(f"⚠ Could not create Excel file (file may be open). Data is saved in database.")
+        return None
     
     print(f"✓ Excel exported: {excel_file}")
     return excel_file
@@ -395,31 +479,83 @@ def print_summary(companies, doctors, hospitals, pharmacies, drugs, patients, al
     print(f"  Pharmacy: downtown@cvs-pharmacy.com / pharmacy123")
     print(f"\n🌐 Login at: http://127.0.0.1:5000/login")
 
+def create_hospital_relationships(hospitals, doctors, drugs, pharmacies):
+    """Create relationships between hospitals and doctors/drugs/pharmacies"""
+    print("\n=== Creating Hospital Relationships ===")
+    
+    # Distribute doctors evenly across hospitals
+    doctors_per_hospital = len(doctors) // len(hospitals)
+    
+    for i, hospital in enumerate(hospitals):
+        # Calculate start and end index for this hospital
+        start_idx = i * doctors_per_hospital
+        if i == len(hospitals) - 1:
+            # Last hospital gets remaining doctors
+            end_idx = len(doctors)
+        else:
+            end_idx = start_idx + doctors_per_hospital
+        
+        # Assign doctors to hospital
+        assigned_doctors = doctors[start_idx:end_idx]
+        for doctor in assigned_doctors:
+            db.session.execute(
+                hospital_doctor.insert().values(
+                    hospital_id=hospital.id,
+                    doctor_id=doctor.id
+                )
+            )
+        
+        print(f"  ✓ {hospital.name}: {len(assigned_doctors)} doctors")
+    
+    # Assign drugs to hospitals (each hospital uses 50-100 random drugs)
+    for hospital in hospitals:
+        num_drugs = random.randint(50, min(100, len(drugs)))
+        hospital_drugs = random.sample(drugs, num_drugs)
+        for drug in hospital_drugs:
+            db.session.execute(
+                hospital_drug.insert().values(
+                    hospital_id=hospital.id,
+                    drug_id=drug.id
+                )
+            )
+    
+    # Assign pharmacies to hospitals (each hospital has 3-5 pharmacy contacts)
+    for hospital in hospitals:
+        num_pharmacies = random.randint(3, min(5, len(pharmacies)))
+        hospital_pharmacies = random.sample(pharmacies, num_pharmacies)
+        for pharmacy in hospital_pharmacies:
+            db.session.execute(
+                hospital_pharmacy.insert().values(
+                    hospital_id=hospital.id,
+                    pharmacy_id=pharmacy.id
+                )
+            )
+    
+    db.session.commit()
+    
+    print(f"✓ Hospital relationships created:")
+    print(f"  - Each hospital has 50-100 drugs in use")
+    print(f"  - Each hospital has 3-5 pharmacy contacts")
+
 def populate_database():
-    """Main function to populate database - assumes app context is already active"""
+    """Main function to populate database"""
     print("="*80)
     print("ENHANCED DATABASE POPULATION")
     print("="*80)
     
-    clear_database()
-    companies, doctors, hospitals, pharmacies = create_users()
-    drugs = create_drugs(companies)
-    patients = create_patients(doctors, hospitals, pharmacies, drugs)
-    alerts = create_alerts(companies, drugs)
-    
-    # Try to export Excel, but don't fail if file is locked
-    try:
+    with app.app_context():
+        clear_database()
+        companies, doctors, hospitals, pharmacies = create_users()
+        drugs = create_drugs(companies)
+        
+        # Create hospital relationships before patients
+        create_hospital_relationships(hospitals, doctors, drugs, pharmacies)
+        
+        patients = create_patients(doctors, hospitals, pharmacies, drugs)
+        alerts = create_alerts(companies, drugs)
         excel_file = export_to_excel(companies, doctors, hospitals, pharmacies, drugs, patients, alerts)
-        print(f"\n✅ Excel file created: {excel_file}")
-    except PermissionError:
-        print("\n⚠ Could not create Excel file (file may be open). Data is saved in database.")
-    except Exception as e:
-        print(f"\n⚠ Excel export failed: {e}")
-    
-    print_summary(companies, doctors, hospitals, pharmacies, drugs, patients, alerts)
-    print(f"\n✅ Database population complete!")
+        print_summary(companies, doctors, hospitals, pharmacies, drugs, patients, alerts)
+        print(f"\n✅ Complete! Excel: {excel_file}")
 
 if __name__ == '__main__':
-    with app.app_context():
-        populate_database()
-
+    populate_database()

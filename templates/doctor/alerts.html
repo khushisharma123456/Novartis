@@ -16,10 +16,8 @@ async function init() {
     try {
         const response = await fetch('/api/alerts');
         if (response.ok) {
-            const data = await response.json();
-            if (data.success && data.alerts) {
-                renderPharmaAlerts(data.alerts);
-            }
+            const alerts = await response.json();
+            renderPharmaAlerts(alerts);
         }
     } catch (error) {
         console.error('Error loading pharma alerts:', error);
@@ -57,8 +55,8 @@ function renderPharmaAlerts(alerts) {
                         <i data-lucide="alert-triangle" style="width: 24px; height: 24px; color: ${severityColors[alert.severity]};"></i>
                     </div>
                     <div>
-                        <h4 style="margin: 0;">${alert.drug_name}</h4>
-                        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.25rem 0 0 0;">From: ${alert.sender}</p>
+                        <h4 style="margin: 0;">${alert.drugName}</h4>
+                        <p style="font-size: 0.85rem; color: var(--text-muted); margin: 0.25rem 0 0 0;">From: ${alert.senderName}</p>
                     </div>
                 </div>
                 <span class="badge" style="background: ${severityColors[alert.severity]}; color: white;">${alert.severity}</span>
