@@ -8,11 +8,16 @@ export const Auth = {
             const response = await fetch('/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ full_name: name, email, password, role })
+                body: JSON.stringify({ name, email, password, role })
             });
-            return await response.json();
+            const data = await response.json();
+            if (!response.ok) {
+                return { success: false, message: data.message || 'Registration failed' };
+            }
+            return data;
         } catch (error) {
-            return { success: false, message: 'Network error' };
+            console.error('Registration error:', error);
+            return { success: false, message: 'Network error: ' + error.message };
         }
     },
 
@@ -27,12 +32,13 @@ export const Auth = {
             const result = await response.json();
             if (result.success) {
                 // Store basic info for UI update (actual session is HttpOnly cookie managed by Flask)
-                localStorage.setItem('user_name', result.user.full_name);
+                localStorage.setItem('user_name', result.user.full_name || result.user.name);
                 localStorage.setItem('user_role', result.user.role);
             }
             return result;
         } catch (error) {
-            return { success: false, message: 'Network error' };
+            console.error('Login error:', error);
+            return { success: false, message: 'Network error: ' + error.message };
         }
     },
 
