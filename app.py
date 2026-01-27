@@ -186,6 +186,76 @@ def get_patients():
         'createdAt': p.created_at.isoformat()
     } for p in patients])
 
+@app.route('/api/patients', methods=['POST'])
+def create_patient():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not authenticated'}), 401
+    
+    user = User.query.get(session['user_id'])
+    if user.role != 'doctor':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    try:
+        data = request.json
+        
+        # Simple risk logic
+        risk = 'Low'
+        symptoms = data.get('symptoms', '').lower()
+        if len(symptoms) > 20:
+            risk = 'Medium'
+        if 'heart' in symptoms or 'breath' in symptoms or 'severe' in symptoms:
+            risk = 'High'
+        
+        # Check if patient exists by phone
+        existing_patient = Patient.query.filter_by(phone=data.get('phone')).first()
+        
+        if existing_patient:
+            patient = existing_patient
+            # Update fields
+            patient.drug_name = data['drugName']
+            if data.get('symptoms'):
+                patient.symptoms = data.get('symptoms')
+            patient.risk_level = risk
+            patient.age = int(data['age'])
+            # Ensure link to this doctor
+            if user not in patient.doctors:
+                patient.doctors.append(user)
+        else:
+            patient = Patient(
+                id='PT-' + str(random.randint(1000, 9999)),
+                created_by=session['user_id'],
+                name=data['name'],
+                phone=data.get('phone'),
+                age=int(data['age']),
+                gender=data['gender'],
+                drug_name=data['drugName'],
+                symptoms=data.get('symptoms'),
+                risk_level=risk
+            )
+            # Link to doctor
+            patient.doctors.append(user)
+            db.session.add(patient)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'patient': {
+                'id': patient.id,
+                'name': patient.name,
+                'age': patient.age,
+                'gender': patient.gender,
+                'drugName': patient.drug_name,
+                'symptoms': patient.symptoms,
+                'riskLevel': patient.risk_level,
+                'phone': patient.phone,
+                'createdAt': patient.created_at.isoformat()
+            }
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
 @app.route('/api/patients/<patient_id>', methods=['GET'])
 def get_patient(patient_id):
     patient = Patient.query.get(patient_id)
@@ -341,20 +411,34 @@ def get_alerts():
 @app.route('/api/alerts', methods=['POST'])
 def create_alert():
     if 'user_id' not in session:
-        return jsonify({'success': False}), 403
+        return jsonify({'success': False, 'message': 'Not authenticated'}), 401
     
-    data = request.json
-    alert = Alert(
-        drug_name=data['drug_name'],
-        message=data['message'],
-        severity=data['severity'],
-        sender_id=session['user_id']
-    )
+    user = User.query.get(session['user_id'])
+    if user.role != 'pharma':
+        return jsonify({'success': False, 'message': 'Only pharma companies can send alerts'}), 403
     
-    db.session.add(alert)
-    db.session.commit()
-    
-    return jsonify({'success': True, 'alert_id': alert.id})
+    try:
+        data = request.json
+        # Support both camelCase and snake_case for compatibility
+        drug_name = data.get('drugName') or data.get('drug_name')
+        
+        if not drug_name:
+            return jsonify({'success': False, 'message': 'Drug name is required'}), 400
+        
+        alert = Alert(
+            drug_name=drug_name,
+            message=data['message'],
+            severity=data['severity'],
+            sender_id=session['user_id']
+        )
+        
+        db.session.add(alert)
+        db.session.commit()
+        
+        return jsonify({'success': True, 'alert_id': alert.id, 'message': 'Alert sent successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/alerts/<int:alert_id>/read', methods=['POST'])
 def mark_alert_read(alert_id):
@@ -794,4 +878,27 @@ def get_hospital_drug_stats(drug_name):
     })
 
 if __name__ == '__main__':
+    # ========================================================================
+    # AUTOMATIC DATABASE POPULATION
+    # ========================================================================
+    # Automatically populate database on first run or if empty
+    with app.app_context():
+        # Check if database is empty
+        from models import User
+        user_count = User.query.count()
+        
+        if user_count == 0:
+            print("\n" + "="*80)
+            print("DATABASE IS EMPTY - STARTING AUTOMATIC POPULATION")
+            print("="*80)
+            from populate_enhanced_data import populate_database
+            populate_database()
+            print("\n" + "="*80)
+            print("DATABASE POPULATION COMPLETE - Starting Flask server...")
+            print("="*80 + "\n")
+        else:
+            print(f"\n✓ Database already populated ({user_count} users found)")
+    
+    # ========================================================================
+    
     app.run(debug=True, host='127.0.0.1', port=5000)
