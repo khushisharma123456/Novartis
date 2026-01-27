@@ -85,6 +85,10 @@ def doctor_warnings():
 def doctor_report():
     return render_template('doctor/report.html')
 
+@app.route('/doctor/settings')
+def doctor_settings():
+    return render_template('doctor/settings.html')
+
 # Pharma Routes
 @app.route('/pharma/dashboard')
 def pharma_dashboard():
@@ -854,6 +858,46 @@ def save_notification_settings():
     
     if user:
         # In a real app, you would save these to the database
+        return jsonify({'success': True, 'message': 'Notification settings saved'})
+    
+    return jsonify({'success': False, 'message': 'User not found'}), 404
+
+# Doctor Settings APIs
+@app.route('/api/doctor/settings', methods=['POST'])
+def save_doctor_settings():
+    if 'user_id' not in session or session.get('role') != 'doctor':
+        return jsonify({'success': False, 'message': 'Not authorized'}), 403
+    
+    data = request.json
+    user = User.query.get(session['user_id'])
+    
+    if user:
+        return jsonify({'success': True, 'message': 'Settings saved'})
+    
+    return jsonify({'success': False, 'message': 'User not found'}), 404
+
+@app.route('/api/doctor/privacy-settings', methods=['POST'])
+def save_doctor_privacy_settings():
+    if 'user_id' not in session or session.get('role') != 'doctor':
+        return jsonify({'success': False, 'message': 'Not authorized'}), 403
+    
+    data = request.json
+    user = User.query.get(session['user_id'])
+    
+    if user:
+        return jsonify({'success': True, 'message': 'Privacy settings saved'})
+    
+    return jsonify({'success': False, 'message': 'User not found'}), 404
+
+@app.route('/api/doctor/notification-settings', methods=['POST'])
+def save_doctor_notification_settings():
+    if 'user_id' not in session or session.get('role') != 'doctor':
+        return jsonify({'success': False, 'message': 'Not authorized'}), 403
+    
+    data = request.json
+    user = User.query.get(session['user_id'])
+    
+    if user:
         return jsonify({'success': True, 'message': 'Notification settings saved'})
     
     return jsonify({'success': False, 'message': 'User not found'}), 404
