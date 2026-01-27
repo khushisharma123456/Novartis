@@ -35,6 +35,7 @@ export class Sidebar extends HTMLElement {
             { icon: 'activity', text: 'Overview', link: '/pharma/dashboard' },
             { icon: 'pill', text: 'Drug Portfolio', link: '/pharma/drugs' },
             { icon: 'file-text', text: 'Reports', link: '/pharma/reports' },
+            { icon: 'user-check', text: 'Patient Recall', link: '/pharma/patient-recall' },
         ];
 
         return this.role === 'pharma' ? pharmaItems : doctorItems;
