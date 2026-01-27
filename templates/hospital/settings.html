@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings - Hospital Safety Dashboard</title>
+    <!-- DEBUG: settings.html is being rendered -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
@@ -323,16 +324,121 @@
         }
 
         .success-message {
-            background-color: #C6F6D5;
-            color: #22543D;
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
             display: none;
         }
 
         .success-message.show {
+            display: none;
+        }
+
+        .error-message {
+            background-color: #FFFFFF;
+            color: #C53030;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1.5rem;
+            display: none;
+            border: 1px solid #FED7D7;
+        }
+
+        .error-message.show {
             display: block;
+        }
+
+        /* Success Modal Dialog */
+        .success-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .success-modal.show {
+            display: flex;
+        }
+
+        .success-modal-content {
+            background-color: white;
+            padding: 3rem 2.5rem;
+            border-radius: 16px;
+            text-align: center;
+            max-width: 380px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            animation: slideUp 0.3s ease-out;
+        }
+
+        .success-checkmark {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            background: #10b981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            animation: scaleIn 0.5s ease-out;
+        }
+
+        .success-checkmark svg {
+            width: 48px;
+            height: 48px;
+            stroke: white;
+            stroke-width: 2;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            animation: checkmarkDraw 0.6s ease-out 0.2s both;
+        }
+
+        @keyframes scaleIn {
+            from {
+                transform: scale(0);
+            }
+            to {
+                transform: scale(1);
+            }
+        }
+
+        @keyframes checkmarkDraw {
+            from {
+                stroke-dasharray: 50;
+                stroke-dashoffset: 50;
+            }
+            to {
+                stroke-dasharray: 50;
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .success-modal-content h2 {
+            color: #1F3A52;
+            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .success-modal-content p {
+            color: #666666;
+            margin-bottom: 0;
+            line-height: 1.6;
+            font-size: 0.95rem;
         }
     </style>
 </head>
@@ -349,6 +455,22 @@
 
                 <div class="success-message" id="successMessage">
                     <i class="fas fa-check-circle"></i> Settings saved successfully!
+                </div>
+
+                <div class="error-message" id="errorMessage">
+                    <i class="fas fa-exclamation-circle"></i> Please fill in all required fields
+                </div>
+
+                <div class="success-modal" id="successModal">
+                    <div class="success-modal-content">
+                        <div class="success-checkmark">
+                            <svg viewBox="0 0 24 24">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                        </div>
+                        <h2>Done Successful</h2>
+                        <p>Your settings have been saved successfully</p>
+                    </div>
                 </div>
 
                 <!-- Hospital Information -->
@@ -439,39 +561,108 @@
 
     <script>
         function showSuccessMessage() {
-            const msg = document.getElementById('successMessage');
-            msg.classList.add('show');
+            const modal = document.getElementById('successModal');
+            const errMsg = document.getElementById('errorMessage');
+            errMsg.classList.remove('show');
+            modal.classList.add('show');
             setTimeout(() => {
-                msg.classList.remove('show');
+                modal.classList.remove('show');
+            }, 2000);
+        }
+
+        function showErrorMessage() {
+            const errMsg = document.getElementById('errorMessage');
+            const modal = document.getElementById('successModal');
+            modal.classList.remove('show');
+            errMsg.classList.add('show');
+            setTimeout(() => {
+                errMsg.classList.remove('show');
             }, 3000);
         }
 
         function saveAccountSettings() {
-            const email = document.getElementById('emailInput').value;
-            const phone = document.getElementById('phoneInput').value;
+            const email = document.getElementById('emailInput').value.trim();
+            const phone = document.getElementById('phoneInput').value.trim();
             
-            if (email && phone) {
-                showSuccessMessage();
-            } else {
-                alert('Please fill in all fields');
+            if (!email || !phone) {
+                showErrorMessage();
+                return;
             }
+            
+            // Save to localStorage for persistence
+            localStorage.setItem('hospital_email', email);
+            localStorage.setItem('hospital_phone', phone);
+            
+            // Show success immediately
+            showSuccessMessage();
+            
+            // Also send to backend API (non-blocking)
+            fetch('/api/hospital/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    email: email,
+                    phone: phone
+                })
+            }).catch(error => console.error('Error:', error));
         }
 
         function savePrivacySettings() {
             const retention = document.getElementById('retentionPeriod').value;
             const sharing = document.getElementById('dataSharingLevel').value;
             
+            // Save to localStorage for persistence
+            localStorage.setItem('hospital_retention', retention);
+            localStorage.setItem('hospital_sharing', sharing);
+            
+            // Show success immediately
             showSuccessMessage();
+            
+            // Also send to backend API (non-blocking)
+            fetch('/api/hospital/privacy-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    retention_period: retention,
+                    data_sharing: sharing
+                })
+            }).catch(error => console.error('Error:', error));
         }
 
         function saveNotificationSettings() {
             const frequency = document.getElementById('alertFrequency').value;
             
+            // Save to localStorage for persistence
+            localStorage.setItem('hospital_alert_frequency', frequency);
+            
+            // Show success immediately
             showSuccessMessage();
+            
+            // Also send to backend API (non-blocking)
+            fetch('/api/hospital/notification-settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    alert_frequency: frequency
+                })
+            }).catch(error => console.error('Error:', error));
         }
 
-        // Sidebar toggle
+        // Load saved settings on page load
         document.addEventListener('DOMContentLoaded', function() {
+            const savedEmail = localStorage.getItem('hospital_email');
+            const savedPhone = localStorage.getItem('hospital_phone');
+            const savedRetention = localStorage.getItem('hospital_retention');
+            const savedSharing = localStorage.getItem('hospital_sharing');
+            const savedFrequency = localStorage.getItem('hospital_alert_frequency');
+            
+            if (savedEmail) document.getElementById('emailInput').value = savedEmail;
+            if (savedPhone) document.getElementById('phoneInput').value = savedPhone;
+            if (savedRetention) document.getElementById('retentionPeriod').value = savedRetention;
+            if (savedSharing) document.getElementById('dataSharingLevel').value = savedSharing;
+            if (savedFrequency) document.getElementById('alertFrequency').value = savedFrequency;
+
+            // Sidebar toggle
             const sidebarCloseBtn = document.getElementById('sidebar-close-btn');
             const sidebar = document.getElementById('sidebar');
 

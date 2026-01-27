@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hospital–Pharma Safety Intelligence Dashboard</title>
+    <!-- DEBUG: dashboad.html is being rendered -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
@@ -2391,14 +2392,9 @@
                 });
             }
 
-            // Navigation links
-            document.querySelectorAll('.nav-link').forEach(link => {
-                link.addEventListener('click', function (e) {
-                    e.preventDefault();
-                    const sectionId = this.getAttribute('data-tab');
-                    showSection(sectionId);
-                });
-            });
+            // Navigation links - REMOVED: Allow normal navigation to separate pages
+            // Previously prevented default and used showSection() for single-page app
+            // Now each page is a separate template rendered by Flask
 
             // Tab switching in overview
             const tabs = document.querySelectorAll('.tab');
