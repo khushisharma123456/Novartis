@@ -37,6 +37,12 @@ class Patient(db.Model):
     symptoms = db.Column(db.Text, nullable=True)
     risk_level = db.Column(db.String(20), default='Low') # Low, Medium, High
     
+    # Case Linkage & Deduplication
+    linked_case_id = db.Column(db.String(20), db.ForeignKey('patient.id'), nullable=True) # Links to parent case if duplicate
+    match_score = db.Column(db.Float, nullable=True) # Similarity score with linked case (0-1)
+    case_status = db.Column(db.String(20), default='Active') # Active, Linked, Discarded
+    match_notes = db.Column(db.Text, nullable=True) # Reason for linkage/discarding
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):

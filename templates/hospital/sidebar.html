@@ -1,8 +1,8 @@
 <style>
     :root {
-        --primary: #8DA399;
-        --primary-dark: #2F4F4F;
-        --secondary: #F5F5F0;
+        --primary: #3A5A7A;
+        --primary-dark: #1F3A52;
+        --secondary: #D8E0EB;
         --accent: #6B8E23;
         --risk-high: #DCA5A5;
         --text-main: #333333;
@@ -173,6 +173,7 @@
         font-size: 11px;
         color: var(--text-muted);
         margin: 4px 0 0 0;
+        display: none;
     }
 
     .sidebar.collapsed .hospital-info {
@@ -186,10 +187,9 @@
 
 <aside class="sidebar" id="sidebar">
     <div class="logo">
-        <div class="logo-icon">Rx</div>
+        <img src="{{ url_for('static', filename='images/logo.jpeg') }}" alt="Inteleyzer Logo" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">
         <div class="logo-text">
             <h1>Inteleyzer</h1>
-            <span>Hospital Safety</span>
         </div>
     </div>
 

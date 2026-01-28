@@ -1028,6 +1028,7 @@
         <div class="header-container">
             <a href="/" class="logo">
                 <div class="logo-icon">Rx</div>
+                <img src="{{ url_for('static', filename='images/logo.jpeg') }}" alt="Inteleyzer Logo" style="width: 32px; height: 32px; border-radius: 8px; object-fit: cover;">
                 <span>Inteleyzer</span>
             </a>
             <nav>
@@ -1158,6 +1159,13 @@
                 <div class="carousel-item" style="background-image: url('/templates/assets/Photo_section/section1/3.png'); background-size: cover; background-position: center;">
                 </div>
                 <div class="carousel-item" style="background-image: url('/templates/assets/Photo_section/section1/4.png'); background-size: cover; background-position: center;">
+                <div class="carousel-item" style="background-image: url('{{ url_for('static', filename='images/section1/1.png') }}'); background-size: cover; background-position: center;">
+                </div>
+                <div class="carousel-item" style="background-image: url('{{ url_for('static', filename='images/section1/2.png') }}'); background-size: cover; background-position: center;">
+                </div>
+                <div class="carousel-item" style="background-image: url('{{ url_for('static', filename='images/section1/3.png') }}'); background-size: cover; background-position: center;">
+                </div>
+                <div class="carousel-item" style="background-image: url('{{ url_for('static', filename='images/section1/4.png') }}'); background-size: cover; background-position: center;">
                 </div>
             </div>
         </div>
@@ -1290,17 +1298,18 @@
             <h2>Meet the Creators</h2>
             <div class="creators-grid">
                 <div class="creator-card">
-                    <img src="/templates/assets/creators/suhani.jpg" alt="Suhani Goyal" class="creator-photo">
+                    <img src="{{ url_for('static', filename='images/creators/suhani.png') }}" alt="Suhani Goyal" class="creator-photo">
                     <h3>Suhani Goyal</h3>
                     <p>Engineer</p>
                 </div>
                 <div class="creator-card">
-                    <img src="/templates/assets/creators/mehak.jpg" alt="Mehak Dogra" class="creator-photo">
+                    <img src="{{ url_for('static', filename='images/creators/mehak.png') }}" alt="Mehak Dogra" class="creator-photo">
                     <h3>Mehak Dogra</h3>
                     <p>Engineer</p>
                 </div>
                 <div class="creator-card">
                     <img src="/templates/assets/creators/khushi.png" alt="Khushi Sharma" class="creator-photo">
+                    <img src="{{ url_for('static', filename='images/creators/khushi.jpg') }}" alt="Khushi Sharma" class="creator-photo">
                     <h3>Khushi Sharma</h3>
                     <p>Engineer</p>
                 </div>

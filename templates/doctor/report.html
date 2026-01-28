@@ -188,6 +188,205 @@
             color: #991B1B;
             display: block;
         }
+        
+        /* Case Matching Modal Styles */
+        .case-match-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        
+        .case-match-content {
+            background: white;
+            border-radius: 12px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+        }
+        
+        .case-match-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1.5rem;
+            border-bottom: 1px solid #E2E8F0;
+        }
+        
+        .case-match-header h2 {
+            margin: 0;
+            display: flex;
+            align-items: center;
+            color: #991B1B;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 2rem;
+            cursor: pointer;
+            color: var(--text-muted);
+        }
+        
+        .case-match-body {
+            padding: 1.5rem;
+        }
+        
+        .match-message {
+            color: var(--text-muted);
+            margin: 0 0 1rem 0;
+        }
+        
+        .match-case-item {
+            background: #FAFAF9;
+            border: 1px solid #E2E8F0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+        }
+        
+        .match-case-item:hover {
+            background: #F1F5F9;
+            border-color: var(--primary);
+        }
+        
+        .match-case-item.selected {
+            background: #EFF6FF;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .case-selector {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #D1D5DB;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .match-case-item.selected .case-selector {
+            background: var(--primary);
+            border-color: var(--primary);
+        }
+        
+        .case-selector::after {
+            content: '✓';
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        
+        .match-case-item.selected .case-selector::after {
+            content: '✓';
+        }
+        
+        .case-info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            font-size: 0.9rem;
+        }
+        
+        .case-info-label {
+            font-weight: 600;
+            color: var(--text-muted);
+            min-width: 120px;
+        }
+        
+        .case-info-value {
+            color: var(--text);
+            flex: 1;
+        }
+        
+        .similarity-score {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+        
+        .similarity-score.high {
+            background: #FEE2E2;
+            color: #991B1B;
+        }
+        
+        .similarity-score.medium {
+            background: #FEF3C7;
+            color: #92400E;
+        }
+        
+        .similarity-score.low {
+            background: #E6F4EA;
+            color: #166534;
+        }
+        
+        .score-breakdown {
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid #E2E8F0;
+        }
+        
+        .score-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            padding: 0.25rem 0;
+        }
+        
+        .recommendation-box {
+            margin: 1.5rem 0;
+            padding: 1rem;
+            border-radius: 8px;
+            background: #FEF2F2;
+            border-left: 4px solid #DC2626;
+        }
+        
+        .recommendation-box strong {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #991B1B;
+        }
+        
+        .recommendation-box p {
+            margin: 0;
+            color: #7F1D1D;
+        }
+        
+        .case-match-footer {
+            padding: 1.5rem;
+            border-top: 1px solid #E2E8F0;
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+        
+        .btn-danger {
+            background: #DC2626;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #991B1B;
+        }
     </style>
 </head>
 <body>
@@ -360,6 +559,35 @@
                     
                     <div id="submission-result" class="submission-result"></div>
                 </form>
+                
+                <!-- Case Matching Modal -->
+                <div id="case-match-modal" class="case-match-modal" style="display: none;">
+                    <div class="case-match-content">
+                        <div class="case-match-header">
+                            <h2><i data-lucide="alert-circle" style="width:24px; height:24px; margin-right:0.5rem;"></i>Potential Duplicate Cases Found</h2>
+                            <button class="close-modal" onclick="closeCaseMatchModal()">×</button>
+                        </div>
+                        
+                        <div class="case-match-body">
+                            <p class="match-message" id="match-message">
+                                This case appears similar to existing cases in the database. Review below:
+                            </p>
+                            
+                            <div id="matches-list" style="margin: 1.5rem 0;"></div>
+                            
+                            <div id="recommendation-box" class="recommendation-box" style="margin: 1.5rem 0; padding: 1rem; border-radius: 8px; background: #FEF2F2; border-left: 4px solid #DC2626;">
+                                <strong id="rec-action">Recommendation:</strong>
+                                <p id="rec-reason" style="margin: 0.5rem 0 0;"></p>
+                            </div>
+                        </div>
+                        
+                        <div class="case-match-footer">
+                            <button class="btn btn-outline" onclick="proceedWithNewCase()">Add as New Case</button>
+                            <button class="btn btn-primary" id="link-case-btn" onclick="linkToExistingCase()" style="display: none;">Link to Selected Case</button>
+                            <button class="btn btn-danger" id="discard-btn" onclick="discardDuplicateCase()" style="display: none;">Discard Duplicate</button>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <!-- Excel Upload Tab -->
@@ -457,16 +685,28 @@
         window.downloadTemplate = downloadTemplate;
         window.clearExcel = clearExcel;
         window.submitExcelData = submitExcelData;
+        window.closeCaseMatchModal = closeCaseMatchModal;
+        window.proceedWithNewCase = proceedWithNewCase;
+        window.linkToExistingCase = linkToExistingCase;
+        window.discardDuplicateCase = discardDuplicateCase;
+        window.selectMatchCase = selectMatchCase;
         
         // Store parsed Excel data
         let excelData = [];
+        let currentCaseData = null;
+        let currentMatchResults = null;
+        let selectedMatchId = null;
         
         // PV Backend URL
         const PV_API = 'http://localhost:5001/api';
+        const LOCAL_API = 'http://localhost:5000/api';
         
         // Use development endpoints (no auth required)
         const PV_SUBMIT_URL = `${PV_API}/submit/doctor-dev`;
         const PV_CASES_URL = `${PV_API}/cases/dev`;
+        const CASE_MATCH_URL = `${LOCAL_API}/cases/match`;
+        const CASE_LINK_URL = `${LOCAL_API}/cases/link`;
+        const CASE_DISCARD_URL = `${LOCAL_API}/cases/discard`;
         
         // Get auth token for PV API (optional in dev mode)
         function getPVToken() {
@@ -496,22 +736,189 @@
             const formData = new FormData(form);
             const data = Object.fromEntries(formData.entries());
             
-            // Map form data to PV API format
-            const pvData = {
-                patient_identifier: data.patient_identifier,
-                drug_name: data.drug_name,
-                drug_code: data.drug_code || null,
-                drug_batch: data.drug_batch || null,
-                indication: data.indication || null,
-                dosage: data.dosage || null,
-                route_of_administration: data.route_of_administration || null,
-                start_date: data.start_date || null,
-                event_date: data.event_date || null,
-                observed_events: data.observed_events || null,
-                outcome: data.outcome || data.outcome_status || null,
-                consent_to_contact: data.consent_to_contact === 'true'
+            // Store current case data for later use
+            currentCaseData = data;
+            
+            // Prepare matching data
+            const matchingData = {
+                drugName: data.drug_name,
+                symptoms: data.observed_events || '',
+                age: parseInt(data.patient_age) || 0,
+                gender: data.patient_gender || '',
+                threshold: 0.75
             };
             
+            const resultDiv = document.getElementById('submission-result');
+            const submitBtn = document.getElementById('submit-btn');
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i data-lucide="loader" style="width:16px; height:16px; margin-right:0.5rem;"></i>Checking for similar cases...';
+            
+            try {
+                // Step 1: Check for matching cases
+                console.log('Checking for matching cases:', matchingData);
+                const matchResponse = await fetch(CASE_MATCH_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(matchingData)
+                });
+                
+                const matchResult = await matchResponse.json();
+                currentMatchResults = matchResult;
+                
+                if (matchResult.success && matchResult.matches && matchResult.matches.length > 0) {
+                    // Show case matching modal
+                    showCaseMatchModal(matchResult);
+                    return;
+                }
+                
+                // No matches found, proceed with submission
+                await proceedWithNewCaseSubmission(form, data);
+                
+            } catch (error) {
+                console.error('Error during case matching:', error);
+                // Continue with submission anyway
+                await proceedWithNewCaseSubmission(form, data);
+            }
+        }
+        
+        // Show the case matching modal
+        function showCaseMatchModal(matchResult) {
+            selectedMatchId = null;
+            const modal = document.getElementById('case-match-modal');
+            const messageEl = document.getElementById('match-message');
+            const matchesListEl = document.getElementById('matches-list');
+            const recActionEl = document.getElementById('rec-action');
+            const recReasonEl = document.getElementById('rec-reason');
+            
+            // Update message
+            messageEl.textContent = `Found ${matchResult.total_matches} similar case(s). Please review:`;
+            
+            // Render matches
+            matchesListEl.innerHTML = matchResult.matches.map((match, idx) => `
+                <div class="match-case-item" id="match-${match.case_id}" onclick="selectMatchCase('${match.case_id}')">
+                    <div class="case-selector"></div>
+                    <div class="case-info-row">
+                        <span class="case-info-label">Case ID:</span>
+                        <span class="case-info-value"><strong>${match.case_id}</strong></span>
+                    </div>
+                    <div class="case-info-row">
+                        <span class="case-info-label">Patient:</span>
+                        <span class="case-info-value">${match.patient_name}</span>
+                    </div>
+                    <div class="case-info-row">
+                        <span class="case-info-label">Drug:</span>
+                        <span class="case-info-value">${match.drug_name}</span>
+                    </div>
+                    <div class="case-info-row">
+                        <span class="case-info-label">Symptoms:</span>
+                        <span class="case-info-value">${match.symptoms || 'N/A'}</span>
+                    </div>
+                    <div class="case-info-row">
+                        <span class="case-info-label">Demographics:</span>
+                        <span class="case-info-value">${match.age} years, ${match.gender}</span>
+                    </div>
+                    <div class="case-info-row">
+                        <span class="case-info-label">Reported:</span>
+                        <span class="case-info-value">${new Date(match.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div class="score-breakdown">
+                        <div class="case-info-row" style="margin-bottom: 0.5rem;">
+                            <strong>Match Score:</strong>
+                            <span class="similarity-score ${getSimilarityClass(match.similarity_score)}">
+                                ${(match.similarity_score * 100).toFixed(1)}%
+                            </span>
+                        </div>
+                        <div class="score-item">
+                            <span>Drug Match:</span>
+                            <span>${(match.breakdown.drug * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="score-item">
+                            <span>Symptom Match:</span>
+                            <span>${(match.breakdown.symptoms * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="score-item">
+                            <span>Demographics:</span>
+                            <span>${(match.breakdown.demographics * 100).toFixed(0)}%</span>
+                        </div>
+                        <div class="score-item">
+                            <span>Time Recency:</span>
+                            <span>${(match.breakdown.time_recency * 100).toFixed(0)}%</span>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            // Update recommendation
+            const action = matchResult.action;
+            recActionEl.textContent = `Recommendation: ${action}`;
+            recReasonEl.textContent = matchResult.reason;
+            
+            // Update recommendation box color
+            const recBox = document.getElementById('recommendation-box');
+            if (action === 'DISCARD') {
+                recBox.style.borderLeftColor = '#DC2626';
+                recBox.style.background = '#FEF2F2';
+            } else if (action === 'REVIEW') {
+                recBox.style.borderLeftColor = '#EA580C';
+                recBox.style.background = '#FEF3C7';
+            } else {
+                recBox.style.borderLeftColor = '#16A34A';
+                recBox.style.background = '#ECFDF5';
+            }
+            
+            // Update button visibility
+            const linkBtn = document.getElementById('link-case-btn');
+            const discardBtn = document.getElementById('discard-btn');
+            
+            if (action === 'DISCARD') {
+                linkBtn.style.display = 'none';
+                discardBtn.style.display = 'block';
+            } else {
+                linkBtn.style.display = 'block';
+                discardBtn.style.display = matchResult.top_match ? 'block' : 'none';
+            }
+            
+            // Show modal
+            modal.style.display = 'flex';
+            lucide.createIcons();
+        }
+        
+        function getSimilarityClass(score) {
+            if (score >= 0.8) return 'high';
+            if (score >= 0.6) return 'medium';
+            return 'low';
+        }
+        
+        function selectMatchCase(caseId) {
+            // Remove previous selection
+            document.querySelectorAll('.match-case-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            
+            // Add selection to clicked item
+            document.getElementById(`match-${caseId}`).classList.add('selected');
+            selectedMatchId = caseId;
+            
+            // Show link button
+            document.getElementById('link-case-btn').style.display = 'block';
+        }
+        
+        function closeCaseMatchModal() {
+            document.getElementById('case-match-modal').style.display = 'none';
+            resetSubmitButton();
+        }
+        
+        async function proceedWithNewCase() {
+            closeCaseMatchModal();
+            // Generate a new case ID and submit
+            const newCaseId = `DR-${Date.now()}`;
+            await proceedWithNewCaseSubmission(null, currentCaseData, newCaseId);
+        }
+        
+        async function proceedWithNewCaseSubmission(form, data, caseId) {
             const resultDiv = document.getElementById('submission-result');
             const submitBtn = document.getElementById('submit-btn');
             
@@ -519,10 +926,23 @@
             submitBtn.innerHTML = '<i data-lucide="loader" style="width:16px; height:16px; margin-right:0.5rem;"></i>Submitting...';
             
             try {
-                // First try to get PV token, or use existing session
-                let token = getPVToken();
+                // Map form data to PV API format
+                const pvData = {
+                    patient_identifier: data.patient_identifier,
+                    drug_name: data.drug_name,
+                    drug_code: data.drug_code || null,
+                    drug_batch: data.drug_batch || null,
+                    indication: data.indication || null,
+                    dosage: data.dosage || null,
+                    route_of_administration: data.route_of_administration || null,
+                    start_date: data.start_date || null,
+                    event_date: data.event_date || null,
+                    observed_events: data.observed_events || null,
+                    outcome: data.outcome || data.outcome_status || null,
+                    consent_to_contact: data.consent_to_contact === 'true'
+                };
                 
-                // Submit to PV backend (use dev endpoint - no auth required)
+                // First try to submit to PV backend
                 const response = await fetch(PV_SUBMIT_URL, {
                     method: 'POST',
                     headers: {
@@ -537,7 +957,7 @@
                     resultDiv.className = 'submission-result success';
                     resultDiv.innerHTML = `
                         <strong>✓ Submission Successful</strong>
-                        <p>Case Number: <strong>${result.case_number}</strong></p>
+                        <p>Case Number: <strong>${result.case_number || caseId}</strong></p>
                         <p>Event ID: ${result.event_id} | New Case: ${result.is_new_case ? 'Yes' : 'No (linked to existing)'}</p>
                         <p>Score: <span class="score-badge ${getScoreClass(result.score?.computed_score)}">${result.score?.computed_score || 0}</span>
                            (${result.score?.polarity || 'unclear'}, strength ${result.score?.strength || 0})</p>
@@ -549,7 +969,7 @@
                     
                     // Clear form after successful submission
                     setTimeout(() => {
-                        form.reset();
+                        if (form) form.reset();
                     }, 2000);
                 } else {
                     throw new Error(result.message || 'Submission failed');
@@ -567,6 +987,129 @@
                 submitBtn.innerHTML = '<i data-lucide="send" style="width:16px; height:16px; margin-right:0.5rem;"></i>Submit to PV System';
                 lucide.createIcons();
             }
+        }
+        
+        async function linkToExistingCase() {
+            if (!selectedMatchId) {
+                alert('Please select a case to link to');
+                return;
+            }
+            
+            const matchResult = currentMatchResults.matches.find(m => m.case_id === selectedMatchId);
+            if (!matchResult) return;
+            
+            closeCaseMatchModal();
+            
+            const resultDiv = document.getElementById('submission-result');
+            const submitBtn = document.getElementById('submit-btn');
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i data-lucide="loader" style="width:16px; height:16px; margin-right:0.5rem;"></i>Linking case...';
+            
+            try {
+                // Create new case
+                const newCaseId = `DR-${Date.now()}`;
+                const linkData = {
+                    newCaseId: newCaseId,
+                    linkedCaseId: selectedMatchId,
+                    matchScore: matchResult.similarity_score,
+                    notes: `Linked from doctor report. Match confidence: ${(matchResult.similarity_score * 100).toFixed(1)}%`
+                };
+                
+                const response = await fetch(CASE_LINK_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(linkData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.className = 'submission-result success';
+                    resultDiv.innerHTML = `
+                        <strong>✓ Case Linked Successfully</strong>
+                        <p>New Case ID: <strong>${newCaseId}</strong></p>
+                        <p>Linked to existing case: <strong>${selectedMatchId}</strong></p>
+                        <p>Match Score: <span class="score-badge" style="background: #E6F4EA; color: #166534;">${(matchResult.similarity_score * 100).toFixed(1)}%</span></p>
+                    `;
+                } else {
+                    throw new Error(result.message || 'Linking failed');
+                }
+            } catch (error) {
+                console.error('Linking error:', error);
+                resultDiv.className = 'submission-result error';
+                resultDiv.innerHTML = `
+                    <strong>✗ Linking Failed</strong>
+                    <p>${error.message}</p>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i data-lucide="send" style="width:16px; height:16px; margin-right:0.5rem;"></i>Submit to PV System';
+                lucide.createIcons();
+            }
+        }
+        
+        async function discardDuplicateCase() {
+            if (!selectedMatchId && !currentMatchResults?.top_match) {
+                alert('No case to discard');
+                return;
+            }
+            
+            const caseToDiscard = selectedMatchId || currentMatchResults.top_match.case_id;
+            
+            closeCaseMatchModal();
+            
+            const resultDiv = document.getElementById('submission-result');
+            const submitBtn = document.getElementById('submit-btn');
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i data-lucide="loader" style="width:16px; height:16px; margin-right:0.5rem;"></i>Discarding duplicate...';
+            
+            try {
+                const discardData = {
+                    caseId: caseToDiscard,
+                    reason: 'Identified as duplicate during case matching review'
+                };
+                
+                const response = await fetch(CASE_DISCARD_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(discardData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    resultDiv.className = 'submission-result success';
+                    resultDiv.innerHTML = `
+                        <strong>✓ Duplicate Discarded</strong>
+                        <p>Case <strong>${caseToDiscard}</strong> has been marked as discarded.</p>
+                    `;
+                } else {
+                    throw new Error(result.message || 'Discard failed');
+                }
+            } catch (error) {
+                console.error('Discard error:', error);
+                resultDiv.className = 'submission-result error';
+                resultDiv.innerHTML = `
+                    <strong>✗ Discard Failed</strong>
+                    <p>${error.message}</p>
+                `;
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i data-lucide="send" style="width:16px; height:16px; margin-right:0.5rem;"></i>Submit to PV System';
+                lucide.createIcons();
+            }
+        }
+        
+        function resetSubmitButton() {
+            const submitBtn = document.getElementById('submit-btn');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i data-lucide="send" style="width:16px; height:16px; margin-right:0.5rem;"></i>Submit to PV System';
         }
         
         function getScoreClass(score) {

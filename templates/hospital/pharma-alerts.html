@@ -5,16 +5,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pharma Safety Alerts - Hospital Safety Dashboard</title>
+    <!-- DEBUG: pharma-alerts.html is being rendered -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             /* Color Palette */
-            --primary: #8DA399;
-            /* Soft Sage Green */
-            --primary-dark: #2F4F4F;
-            /* Dark Slate */
-            --secondary: #F5F5F0;
-            /* Cream / Warm Beige */
+            --primary: #3A5A7A;
+            /* Deep Bluish Gray */
+            --primary-dark: #1F3A52;
+            /* Very Dark Bluish Gray */
+            --secondary: #D8E0EB;
+            /* Darker Light Blue-Gray */
             --accent: #6B8E23;
             /* Olive Green */
 
@@ -264,8 +265,14 @@
         /* Main Content */
         .main-content {
             flex: 1;
+            margin-left: var(--sidebar-width);
             padding: 25px 30px;
             overflow-y: auto;
+            transition: margin-left 0.3s ease;
+        }
+
+        body.sidebar-collapsed .main-content {
+            margin-left: 80px;
         }
 
         .header {
