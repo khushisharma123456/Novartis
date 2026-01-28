@@ -126,6 +126,10 @@ def pharmacy_report():
 def pharmacy_alerts():
     return render_template('pharmacy/alerts.html')
 
+@app.route('/pharmacy/history')
+def pharmacy_history():
+    return render_template('pharmacy/history.html')
+
 # --- API Routes ---
 
 # Authentication APIs
@@ -732,6 +736,137 @@ def get_pharmacy_reports():
             'status': 'Submitted'
         } for p in reports.all()]
     })
+
+@app.route('/api/pharmacy/reports/submit', methods=['POST'])
+def submit_pharmacy_reports():
+    """Submit pharmacy safety data reports"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not authenticated'}), 401
+    
+    user = User.query.get(session['user_id'])
+    if user.role != 'pharmacy':
+        return jsonify({'success': False, 'message': 'Not authorized'}), 403
+    
+    try:
+        data = request.json
+        report_type = data.get('report_type', 'anonymous')
+        records = data.get('records', [])
+        
+        created_records = []
+        for record in records:
+            # Generate unique patient ID
+            patient_id = f"PH-{random.randint(10000, 99999)}"
+            while Patient.query.get(patient_id):
+                patient_id = f"PH-{random.randint(10000, 99999)}"
+            
+            # Map form fields to Patient model
+            patient = Patient(
+                id=patient_id,
+                created_by=user.id,
+                name='Anonymous' if report_type == 'anonymous' else record.get('internal_case_id', 'Patient'),
+                age=35,  # Default age for pharmacy reports
+                gender=record.get('gender', 'not_specified'),
+                drug_name=record.get('drug_name', 'Unknown'),
+                symptoms=record.get('reaction_category', ''),
+                risk_level=record.get('severity', 'mild').capitalize()
+            )
+            
+            db.session.add(patient)
+            created_records.append(patient_id)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'{len(created_records)} record(s) submitted successfully',
+            'record_ids': created_records
+        })
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error submitting pharmacy reports: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/pharmacy/reports/compliance-score')
+def get_pharmacy_compliance_score():
+    """Calculate compliance score for pharmacy based on reporting activity"""
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not authenticated'}), 401
+    
+    user = User.query.get(session['user_id'])
+    if user.role != 'pharmacy':
+        return jsonify({'success': False, 'message': 'Not authorized'}), 403
+    
+    try:
+        from datetime import datetime, timedelta
+        
+        # Get all reports by this pharmacy user
+        total_reports = Patient.query.filter_by(created_by=user.id).count()
+        
+        # Reports this month
+        month_start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        monthly_reports = Patient.query.filter(
+            Patient.created_by == user.id,
+            Patient.created_at >= month_start
+        ).count()
+        
+        # Reports this week
+        week_start = datetime.now() - timedelta(days=datetime.now().weekday())
+        week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+        weekly_reports = Patient.query.filter(
+            Patient.created_by == user.id,
+            Patient.created_at >= week_start
+        ).count()
+        
+        # Calculate compliance score (0-100)
+        # Base score starts at 50
+        score = 50
+        
+        # +20 points for having at least 5 total reports
+        if total_reports >= 5:
+            score += 20
+        elif total_reports >= 1:
+            score += total_reports * 4  # 4 points per report up to 5
+        
+        # +15 points for monthly reporting activity (at least 2 reports/month)
+        if monthly_reports >= 2:
+            score += 15
+        elif monthly_reports >= 1:
+            score += 8
+        
+        # +15 points for weekly reporting activity (at least 1 report/week)
+        if weekly_reports >= 1:
+            score += 15
+        
+        # Cap at 100
+        score = min(100, score)
+        
+        # Determine status
+        if score >= 90:
+            status = "Excellent"
+        elif score >= 80:
+            status = "Good"
+        elif score >= 60:
+            status = "Satisfactory"
+        elif score >= 40:
+            status = "Needs Improvement"
+        else:
+            status = "At Risk"
+        
+        return jsonify({
+            'success': True,
+            'compliance_score': score,
+            'status': status,
+            'details': {
+                'total_reports': total_reports,
+                'monthly_reports': monthly_reports,
+                'weekly_reports': weekly_reports
+            }
+        })
+    except Exception as e:
+        print(f"Error calculating compliance score: {str(e)}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/pharmacy/report', methods=['POST'])
 def submit_pharmacy_report():

@@ -514,7 +514,7 @@
                             </div>
                             
                             <div class="checkbox-group">
-                                <input type="checkbox" id="confirmCheckbox">
+                                <input type="checkbox" id="confirmCheckbox" onchange="updateSubmitButtonState()">
                                 <label for="confirmCheckbox">I confirm this data is accurate and compliant</label>
                             </div>
                         </div>
@@ -522,7 +522,7 @@
                         <!-- ACTION BUTTONS -->
                         <div class="btn-group">
                             <button class="btn btn-secondary" onclick="resetForm()">Clear</button>
-                            <button class="btn btn-success" id="submitBtn" onclick="submitReport()" disabled>
+                            <button class="btn btn-success" id="submitBtn" onclick="console.log('Submit clicked'); submitReport()">
                                 Submit Report
                             </button>
                         </div>

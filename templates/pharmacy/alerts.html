@@ -222,10 +222,13 @@
         // Load alerts from backend
         async function loadAlerts() {
             try {
+                console.log('Fetching pharmacy alerts...');
                 const response = await fetch('/api/pharmacy/alerts');
+                console.log('Response status:', response.status);
                 const data = await response.json();
+                console.log('Response data:', data);
                 
-                if (data.success && data.alerts) {
+                if (data.success && data.alerts && data.alerts.length > 0) {
                     allAlerts = data.alerts.map(alert => ({
                         id: alert.id,
                         type: alert.type || 'safety',
@@ -241,8 +244,12 @@
                         createdAt: alert.created_at
                     }));
                     
+                    console.log('Mapped alerts:', allAlerts.length);
                     filteredAlerts = allAlerts;
                     renderAlerts(allAlerts);
+                } else {
+                    console.log('No alerts found or error, loading sample data');
+                    loadSampleAlerts();
                 }
             } catch (error) {
                 console.error('Error loading alerts:', error);
@@ -253,6 +260,7 @@
 
         // Sample alerts data (fallback)
         function loadSampleAlerts() {
+            console.log('Loading sample alerts as fallback');
             const sampleAlerts = [
             {
                 id: 'ALT-001',
@@ -325,6 +333,11 @@
                 createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString()
             }
         ];
+            
+            allAlerts = sampleAlerts;
+            filteredAlerts = sampleAlerts;
+            renderAlerts(sampleAlerts);
+        }
 
         function renderAlerts(alerts) {
             const body = document.getElementById('alerts-body');
@@ -377,8 +390,13 @@
         document.getElementById('searchInput').addEventListener('input', applySearch);
 
         function openPanel(alertId) {
-            currentAlert = allAlerts.find(a => a.id === alertId);
-            if (!currentAlert) return;
+            console.log('Opening panel for alert:', alertId);
+            currentAlert = allAlerts.find(a => a.id == alertId || a.id === alertId);
+            if (!currentAlert) {
+                console.error('Alert not found:', alertId, 'Available IDs:', allAlerts.map(a => a.id));
+                return;
+            }
+            console.log('Found alert:', currentAlert);
 
             document.getElementById('detail-type').textContent = currentAlert.type === 'safety' ? 'Safety Alert' : currentAlert.type === 'followup' ? 'Follow-up Required' : 'Compliance Alert';
             document.getElementById('detail-type').className = `alert-type-badge type-${currentAlert.type}`;

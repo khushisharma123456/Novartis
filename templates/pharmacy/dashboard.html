@@ -310,27 +310,40 @@
         // Load immediate attention alerts
         async function loadAttentionAlerts() {
             try {
-                const response = await fetch('/api/pharmacy/alerts?priority=high');
+                const response = await fetch('/api/pharmacy/alerts');
                 const data = await response.json();
                 
                 if (data.success && data.alerts && data.alerts.length > 0) {
                     const section = document.getElementById('attention-section');
                     const list = document.getElementById('attention-list');
                     
-                    list.innerHTML = data.alerts.slice(0, 5).map(alert => `
-                        <div class="attention-row">
+                    // Filter for high/critical severity alerts
+                    const highPriorityAlerts = data.alerts.filter(a => 
+                        a.severity && (a.severity.toLowerCase() === 'high' || a.severity.toLowerCase() === 'critical')
+                    ).slice(0, 5);
+                    
+                    if (highPriorityAlerts.length === 0) {
+                        section.style.display = 'none';
+                        return;
+                    }
+                    
+                    list.innerHTML = highPriorityAlerts.map(alert => {
+                        const isAcknowledged = alert.status === 'acknowledged';
+                        return `
+                        <div class="attention-row" style="${isAcknowledged ? 'opacity: 0.7; background: #F0FDF4;' : ''}">
                             <div class="drug-info">
-                                <div class="drug-name">${alert.drugName}</div>
-                                <div class="reason">${alert.reason}</div>
+                                <div class="drug-name">${alert.drugName || alert.drug_name}</div>
+                                <div class="reason">${alert.reason || alert.message || 'Safety alert'}</div>
                             </div>
-                            <span class="severity ${alert.severity === 'Critical' ? 'severity-critical' : 'severity-high'}">
+                            <span class="severity ${alert.severity.toLowerCase() === 'critical' ? 'severity-critical' : 'severity-high'}">
                                 ${alert.severity}
                             </span>
-                            <button class="action-btn" onclick="acknowledgeAlert('${alert.id}')">
-                                Acknowledge
-                            </button>
+                            ${isAcknowledged 
+                                ? `<span style="padding: 0.5rem 1rem; background: #10B981; color: white; border-radius: 6px; font-weight: 600; font-size: 0.85rem;">✓ Acknowledged</span>`
+                                : `<button class="action-btn" onclick="acknowledgeAlert('${alert.id}')">Acknowledge</button>`
+                            }
                         </div>
-                    `).join('');
+                    `}).join('');
                     
                     section.style.display = 'block';
                 }
