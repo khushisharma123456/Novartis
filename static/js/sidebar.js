@@ -175,6 +175,41 @@ export class Sidebar extends HTMLElement {
                     color: #991B1B;
                     border-right: 3px solid #DC2626;
                 }
+
+                .doctor-name {
+                    padding: 0.75rem 1.5rem;
+                    color: var(--text-muted);
+                    font-size: 0.9rem;
+                    text-align: center;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    background-color: white;
+                    border-radius: 8px;
+                    margin: 0.5rem 1rem;
+                    font-weight: 500;
+                }
+                
+                .doctor-email {
+                    padding: 0.5rem 1.5rem;
+                    color: var(--text-muted);
+                    font-size: 0.8rem;
+                    text-align: center;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                    margin: 0 1rem 0.5rem 1rem;
+                }
+                
+                body.sidebar-collapsed .doctor-name {
+                    font-size: 0.75rem;
+                    padding: 0.5rem 0.5rem;
+                    margin: 0.5rem 0.25rem;
+                }
+                
+                body.sidebar-collapsed .doctor-email {
+                    display: none;
+                }
             </style>
             
             <aside>
@@ -201,6 +236,8 @@ export class Sidebar extends HTMLElement {
                         <i data-lucide="log-out"></i>
                         <span class="nav-text">Logout</span>
                     </button>
+                    <div class="doctor-name">${localStorage.getItem('user_name') || 'Doctor'}</div>
+                    <div class="doctor-email">${localStorage.getItem('user_email') || ''}</div>
                 </div>
             </aside>
         `;

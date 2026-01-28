@@ -82,8 +82,8 @@
         <app-sidebar></app-sidebar>
         <main class="main-content">
             <div class="header">
-                <h1>Report Drug Experience</h1>
-                <p>Submit adverse effects, observations, or safety concerns</p>
+                <h1 style="text-align: center;">Report Drug Experience</h1>
+                <p style="text-align: center;">Submit adverse effects, observations, or safety concerns</p>
             </div>
 
             <div class="form-container">
@@ -267,19 +267,17 @@
                                 <option value="unknown">Unknown</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                <input type="checkbox" required>
-                                <span>I consent to follow-up contact if necessary</span>
-                            </label>
-                            <p class="form-description">Consent is required only if follow-up contact may be necessary.</p>
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-top: 1.5rem; margin-left: -2rem; padding-left: 2rem;">
+                            <input type="checkbox" required style="flex-shrink: 0; width: 18px; height: 18px; cursor: pointer; margin: 0;">
+                            <span style="color: var(--text-main); font-size: 0.95rem;">I consent to follow-up contact if necessary</span>
                         </div>
+                        <p class="form-description" style="margin-left: 0;">Consent is required only if follow-up contact may be necessary.</p>
                     </div>
 
                     <!-- Submit Button -->
                     <div class="button-group">
                         <button class="btn btn-primary" onclick="submitReport()">
-                            <i data-lucide="send"></i> Submit to PV System
+                            <i data-lucide="send"></i> Submit
                         </button>
                         <button class="btn btn-secondary" onclick="resetForm()">
                             <i data-lucide="x"></i> Clear Form
@@ -435,6 +433,73 @@
         }
 
         function submitReport() {
+            // Validate all required fields
+            const requiredFields = [
+                { selector: 'input[placeholder="e.g., Aspirin, Metformin"]', name: 'Drug Name' },
+                { selector: 'input[placeholder="e.g., 500mg"]', name: 'Dosage' },
+                { selector: 'select[required]', name: 'Route of Administration' },
+                { selector: 'textarea[placeholder="Describe what you observed..."]', name: 'Description' },
+                { selector: 'select[required]:last-of-type', name: 'Outcome' }
+            ];
+
+            let allFieldsFilled = true;
+            let missingFields = [];
+
+            // Check patient-linked specific fields
+            if (currentReportType === 'patient-linked') {
+                const patientSelect = document.getElementById('patientSelect');
+                const manualMode = document.getElementById('manualPatientMode');
+                
+                if (manualMode.classList.contains('show')) {
+                    const patientName = manualMode.querySelector('input[placeholder="Full name"]');
+                    const age = manualMode.querySelector('input[placeholder="Age"]');
+                    const gender = manualMode.querySelector('select');
+                    
+                    if (!patientName.value.trim()) missingFields.push('Patient Name');
+                    if (!age.value) missingFields.push('Age');
+                    if (!gender.value) missingFields.push('Gender');
+                } else {
+                    if (!patientSelect.value) missingFields.push('Patient Selection');
+                }
+            }
+
+            // Check common required fields
+            requiredFields.forEach(field => {
+                const element = document.querySelector(field.selector);
+                if (element && !element.value.trim()) {
+                    missingFields.push(field.name);
+                }
+            });
+
+            // Check consent checkbox
+            const consentCheckbox = document.querySelector('input[type="checkbox"]');
+            if (!consentCheckbox.checked) {
+                missingFields.push('Consent');
+            }
+
+            if (missingFields.length > 0) {
+                // Show error modal
+                const errorModal = document.createElement('div');
+                errorModal.className = 'modal show';
+                errorModal.innerHTML = `
+                    <div class="modal-content">
+                        <div class="modal-icon" style="color: #DC2626;">
+                            <i data-lucide="alert-circle"></i>
+                        </div>
+                        <h2 class="modal-title">Missing Required Fields</h2>
+                        <p class="modal-message">Please fill in all required fields before submitting:</p>
+                        <div class="modal-detail" style="text-align: left;">
+                            ${missingFields.map(field => `<div style="padding: 0.5rem 0;">• ${field}</div>`).join('')}
+                        </div>
+                        <button class="modal-btn" onclick="this.closest('.modal').remove()">OK</button>
+                    </div>
+                `;
+                document.body.appendChild(errorModal);
+                lucide.createIcons();
+                return;
+            }
+
+            // All fields filled - show success modal
             const message = currentReportType === 'patient-linked'
                 ? 'This patient-linked report has been recorded and linked to the patient\'s record. It will appear in My Patients and may trigger alerts if severity thresholds are met.'
                 : 'This anonymised report has been recorded for safety monitoring. No patient record was created.';
