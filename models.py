@@ -64,7 +64,49 @@ class Patient(db.Model):
     recall_reason = db.Column(db.Text, nullable=True) # Reason for recall
     recall_date = db.Column(db.DateTime, nullable=True) # When patient was recalled
     
+    # === CASE STRENGTH EVALUATION (STEP 7) ===
+    # Completeness Assessment
+    completeness_score = db.Column(db.Float, default=0.0)  # 0-1 (0-100%)
+    mandatory_fields_filled = db.Column(db.Integer, default=0)
+    total_mandatory_fields = db.Column(db.Integer, default=7)
+    
+    # Temporal Clarity
+    temporal_clarity_score = db.Column(db.Float, default=0.0)  # 0-1
+    symptom_onset_date = db.Column(db.DateTime, nullable=True)
+    symptom_resolution_date = db.Column(db.DateTime, nullable=True)
+    has_clear_timeline = db.Column(db.Boolean, default=False)
+    
+    # Medical Confirmation
+    medical_confirmation_score = db.Column(db.Float, default=0.0)  # 0-1
+    doctor_confirmed = db.Column(db.Boolean, default=False)
+    doctor_confirmation_date = db.Column(db.DateTime, nullable=True)
+    hospital_confirmed = db.Column(db.Boolean, default=False)
+    hospital_confirmation_date = db.Column(db.DateTime, nullable=True)
+    
+    # Follow-up Responsiveness
+    followup_responsiveness_score = db.Column(db.Float, default=0.0)  # 0-1
+    last_followup_date = db.Column(db.DateTime, nullable=True)
+    followup_response_time_days = db.Column(db.Integer, nullable=True)
+    followup_response_quality = db.Column(db.String(20), nullable=True)  # Poor, Fair, Good
+    
+    # Overall Strength
+    strength_level = db.Column(db.String(20), default='Not Evaluated')  # Low, Medium, High, Not Evaluated
+    strength_score = db.Column(db.Integer, default=0)  # 0, 1, 2
+    
+    # === FINAL CASE SCORING (STEP 8) ===
+    polarity = db.Column(db.Integer, nullable=True)  # -1 (AE), 0 (unclear), +1 (positive)
+    case_score = db.Column(db.Integer, nullable=True)  # -2 to +2
+    case_score_interpretation = db.Column(db.String(100), nullable=True)
+    case_score_calculated_at = db.Column(db.DateTime, nullable=True)
+    
+    # === FOLLOW-UP TRACKING (STEP 9) ===
+    follow_up_required = db.Column(db.Boolean, default=False)
+    follow_up_sent = db.Column(db.Boolean, default=False)
+    follow_up_date = db.Column(db.DateTime, nullable=True)
+    follow_up_response = db.Column(db.Text, nullable=True)
+    
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    evaluated_at = db.Column(db.DateTime, nullable=True)
 
     def to_dict(self):
         return {
@@ -175,6 +217,7 @@ class SideEffectReport(db.Model):
             'hospital_name': self.hospital.name if self.hospital else 'N/A'
         }
 
+<<<<<<< HEAD
 class PharmacySettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     pharmacy_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
@@ -235,3 +278,43 @@ class PharmacySettings(db.Model):
             'complianceOfficer': self.compliance_officer or '',
             'autoReport': self.auto_report
         }
+
+
+# === STEP 10: AI AGENT ORCHESTRATION ===
+
+class CaseAgent(db.Model):
+    """
+    AI Agents that improve case quality by requesting additional information
+    Agents: Patient (symptom clarity), Doctor (medical confirmation), Hospital (clinical records)
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    case_id = db.Column(db.String(20), db.ForeignKey('patient.id'), nullable=False)
+    agent_type = db.Column(db.String(20), nullable=False)  # 'patient', 'doctor', 'hospital'
+    role = db.Column(db.String(100))  # Role description
+    target_questions = db.Column(db.JSON)  # List of questions to ask
+    recipient_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    status = db.Column(db.String(20), default='active')  # active, completed, failed
+    responses = db.Column(db.JSON, nullable=True)  # Responses received
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    
+    case = db.relationship('Patient', backref=db.backref('quality_agents', lazy=True))
+    recipient = db.relationship('User', backref=db.backref('assigned_agents', lazy=True))
+
+
+class FollowUp(db.Model):
+    """
+    Track all follow-up activities to improve case quality
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    case_id = db.Column(db.String(20), db.ForeignKey('patient.id'), nullable=False)
+    reason = db.Column(db.Text, nullable=False)  # Why follow-up is needed
+    assigned_to = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    status = db.Column(db.String(20), default='pending')  # pending, in_progress, resolved
+    priority = db.Column(db.String(20), default='medium')  # low, medium, high, critical
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    response = db.Column(db.Text, nullable=True)
+    
+    case = db.relationship('Patient', backref=db.backref('followups', lazy=True))
+    assigned_user = db.relationship('User', backref=db.backref('assigned_followups', lazy=True))
