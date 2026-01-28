@@ -260,8 +260,8 @@
         <main class="main-content">
             <div class="content-wrapper">
                 <div class="page-header">
-                    <h1>Settings</h1>
-                    <p>Manage your account and preferences</p>
+                    <h1 style="text-align: center;">Settings</h1>
+                    <p style="text-align: center;">Manage your account and preferences</p>
                 </div>
 
                 <div class="error-message" id="errorMessage">
@@ -290,8 +290,8 @@
                     </div>
                     <div class="form-group">
                         <label class="form-label">Email Address</label>
-                        <input type="email" class="form-control" id="emailInput" placeholder="your.email@hospital.com">
-                        <p class="form-description">Your account email address</p>
+                        <input type="email" class="form-control" id="emailInput" placeholder="your.email@hospital.com" readonly style="background-color: #F3F4F6; cursor: not-allowed; color: var(--text-muted);">
+                        <p class="form-description">Your account email address (cannot be changed)</p>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Phone Number</label>
@@ -342,15 +342,36 @@
                 <!-- Notification Preferences -->
                 <div class="settings-card">
                     <h2><i class="fas fa-bell"></i> Notification Preferences</h2>
+                    
+                    <div style="background-color: #FEF3C7; border-left: 4px solid #F59E0B; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <p style="margin: 0; color: #92400E; font-size: 0.9rem;"><strong>⚠️ Important:</strong> Urgent Safety Alerts (drug discontinuation, severe adverse effects) will always be delivered immediately, regardless of your preference below.</p>
+                    </div>
+                    
                     <div class="form-group">
                         <label class="form-label">Alert Frequency</label>
-                        <select class="form-control" id="alertFrequency">
+                        <select class="form-control" id="alertFrequency" onchange="updateNotificationDescription()">
                             <option value="immediate">Immediate</option>
                             <option value="daily" selected>Daily Digest</option>
                             <option value="weekly">Weekly Summary</option>
                         </select>
-                        <p class="form-description">How often you receive safety alerts</p>
+                        <p class="form-description">How often you receive pharmaceutical advisories and updates</p>
                     </div>
+
+                    <div id="notificationDescription" style="background-color: #F9FAFB; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; border-left: 4px solid var(--primary);">
+                        <p style="margin: 0; color: var(--text-main); font-size: 0.9rem; line-height: 1.6;">
+                            <strong>Daily Digest:</strong> All pharmaceutical advisories and non-urgent updates are aggregated and delivered each morning (8-9 AM). Urgent safety alerts bypass this and appear immediately.
+                        </p>
+                    </div>
+
+                    <div style="background-color: #F0FDF4; border-left: 4px solid #10B981; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <p style="margin: 0; color: #166534; font-size: 0.9rem;"><strong>✓ Notification Types:</strong></p>
+                        <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem; color: #166534; font-size: 0.9rem;">
+                            <li>Advisories - General safety information</li>
+                            <li>Updates - Drug information changes</li>
+                            <li>Urgent Safety Alerts - Immediate delivery (always)</li>
+                        </ul>
+                    </div>
+                    
                     <div class="button-group">
                         <button class="btn btn-primary" onclick="saveNotificationSettings()">
                             <i class="fas fa-save"></i> Save Changes
@@ -394,7 +415,8 @@
             const phone = document.getElementById('phoneInput').value.trim();
             const specialization = document.getElementById('specializationInput').value.trim();
             
-            if (!name || !email || !phone || !specialization) {
+            // Email is read-only, so we only validate name, phone, and specialization
+            if (!name || !phone || !specialization) {
                 showErrorMessage();
                 return;
             }
@@ -402,6 +424,8 @@
             // Save to localStorage for persistence
             localStorage.setItem('doctor_name', name);
             localStorage.setItem('doctor_email', email);
+            localStorage.setItem('user_name', name);
+            localStorage.setItem('user_email', email);
             localStorage.setItem('doctor_phone', phone);
             localStorage.setItem('doctor_specialization', specialization);
             
@@ -462,18 +486,43 @@
             }).catch(error => console.error('Error:', error));
         };
 
-        // Load saved settings on page load
+        window.updateNotificationDescription = function() {
+            const frequency = document.getElementById('alertFrequency').value;
+            const descDiv = document.getElementById('notificationDescription');
+            
+            let description = '';
+            
+            if (frequency === 'immediate') {
+                description = '<strong>Immediate:</strong> Every pharmaceutical advisory, update, and safety communication appears instantly in your notification center. You receive real-time alerts as they are issued.';
+            } else if (frequency === 'daily') {
+                description = '<strong>Daily Digest:</strong> All pharmaceutical advisories and non-urgent updates are aggregated and delivered each morning (8-9 AM). Urgent safety alerts bypass this and appear immediately.';
+            } else if (frequency === 'weekly') {
+                description = '<strong>Weekly Summary:</strong> Pharmaceutical advisories are grouped and delivered once per week. Routine updates are excluded. Urgent safety alerts bypass this and appear immediately.';
+            }
+            
+            descDiv.innerHTML = `<p style="margin: 0; color: var(--text-main); font-size: 0.9rem; line-height: 1.6;">${description}</p>`;
+        };
+
+        // Load settings from database/user object and localStorage on page load
         document.addEventListener('DOMContentLoaded', function() {
-            const savedName = localStorage.getItem('doctor_name');
-            const savedEmail = localStorage.getItem('doctor_email');
+            // First, try to get from user object (from Auth)
+            if (user && user.name) {
+                document.getElementById('nameInput').value = user.name;
+                localStorage.setItem('doctor_name', user.name);
+            }
+            
+            if (user && user.email) {
+                document.getElementById('emailInput').value = user.email;
+                localStorage.setItem('doctor_email', user.email);
+            }
+            
+            // Then load other saved settings from localStorage
             const savedPhone = localStorage.getItem('doctor_phone');
             const savedSpecialization = localStorage.getItem('doctor_specialization');
             const savedSharing = localStorage.getItem('doctor_sharing');
             const savedRetention = localStorage.getItem('doctor_retention');
             const savedFrequency = localStorage.getItem('doctor_alert_frequency');
             
-            if (savedName) document.getElementById('nameInput').value = savedName;
-            if (savedEmail) document.getElementById('emailInput').value = savedEmail;
             if (savedPhone) document.getElementById('phoneInput').value = savedPhone;
             if (savedSpecialization) document.getElementById('specializationInput').value = savedSpecialization;
             if (savedSharing) document.getElementById('dataSharingLevel').value = savedSharing;
