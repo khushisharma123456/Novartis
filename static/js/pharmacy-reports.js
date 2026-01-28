@@ -1,6 +1,6 @@
 /**
- * Pharmacy Reports Module - Enhanced with Validation & Consent
- * Handles form generation, validation, Excel upload, and submission
+ * Pharmacy Reports Module - Production-Ready
+ * Compliance-grade UX with dialogs, confirmations, and proper validation
  */
 
 let reportState = {
@@ -9,9 +9,10 @@ let reportState = {
     records: [],
     schema: null,
     excelData: null,
-    columnMapping: null,
     consentGiven: false
 };
+
+let confirmAction = null;
 
 const SCHEMAS = {
     anonymous: [
@@ -20,7 +21,7 @@ const SCHEMAS = {
         { key: 'dosage_form', label: 'Dosage Form', type: 'text', required: true },
         { key: 'date_of_dispensing', label: 'Date of Dispensing', type: 'date', required: true },
         { key: 'reaction_category', label: 'Reaction Category', type: 'text', required: true },
-        { key: 'severity', label: 'Severity', type: 'select', options: ['mild', 'moderate', 'severe'], required: true },
+        { key: 'severity', label: 'Severity', type: 'select', options: ['mild', 'moderate', 'severe'], required: true, help: 'Select the severity level of the reaction' },
         { key: 'reaction_outcome', label: 'Reaction Outcome', type: 'select', options: ['recovered', 'recovering', 'not_recovered', 'fatal', 'unknown'], required: false },
         { key: 'age_group', label: 'Age Group', type: 'select', options: ['pediatric', 'adolescent', 'adult', 'elderly', 'unknown'], required: true },
         { key: 'gender', label: 'Gender', type: 'select', options: ['male', 'female', 'other', 'not_specified'], required: false },
@@ -32,7 +33,7 @@ const SCHEMAS = {
         { key: 'dosage_form', label: 'Dosage Form', type: 'text', required: true },
         { key: 'date_of_dispensing', label: 'Date of Dispensing', type: 'date', required: true },
         { key: 'reaction_category', label: 'Reaction Category', type: 'text', required: true },
-        { key: 'severity', label: 'Severity', type: 'select', options: ['mild', 'moderate', 'severe'], required: true },
+        { key: 'severity', label: 'Severity', type: 'select', options: ['mild', 'moderate', 'severe'], required: true, help: 'Select the severity level of the reaction' },
         { key: 'reaction_outcome', label: 'Reaction Outcome', type: 'select', options: ['recovered', 'recovering', 'not_recovered', 'fatal', 'unknown'], required: false },
         { key: 'age_group', label: 'Age Group', type: 'select', options: ['pediatric', 'adolescent', 'adult', 'elderly', 'unknown'], required: true },
         { key: 'gender', label: 'Gender', type: 'select', options: ['male', 'female', 'other', 'not_specified'], required: false },
@@ -189,7 +190,7 @@ function addFormRow() {
     let html = `
         <div class="form-row-header">
             <div class="form-row-title">Record ${rowIndex + 1}</div>
-            ${rowIndex > 0 ? `<button type="button" class="form-row-remove" onclick="removeFormRow(${rowIndex})">Remove</button>` : ''}
+            ${rowIndex > 0 ? `<button type="button" class="form-row-remove" onclick="showRemoveRecordDialog(${rowIndex})">Remove</button>` : ''}
         </div>
         <div class="form-grid">
     `;
@@ -204,15 +205,56 @@ function addFormRow() {
     rowDiv.innerHTML = html;
     container.appendChild(rowDiv);
     
+    // Animate new record
+    rowDiv.style.animation = 'slideUp 0.3s ease';
+    rowDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    
     updateFormDisabledState();
+}
+
+function showRemoveRecordDialog(rowIndex) {
+    confirmAction = () => removeFormRow(rowIndex);
+    
+    const dialog = document.getElementById('confirmDialog');
+    document.getElementById('confirmTitle').textContent = 'Remove Record';
+    document.getElementById('confirmMessage').textContent = 'Are you sure you want to remove this record?';
+    document.getElementById('confirmBtn').textContent = 'Remove';
+    document.getElementById('confirmBtn').className = 'modal-btn modal-btn-confirm';
+    
+    dialog.classList.add('show');
 }
 
 function removeFormRow(rowIndex) {
     const container = document.getElementById('formFieldsContainer');
     const rows = container.querySelectorAll('.form-row');
+    
+    if (rows.length === 1) {
+        showToast('At least one record must exist', 'error');
+        return;
+    }
+    
     if (rows[rowIndex]) {
         rows[rowIndex].remove();
+        showToast('Record removed', 'success');
+        
+        // Re-number remaining records
+        container.querySelectorAll('.form-row').forEach((row, idx) => {
+            const title = row.querySelector('.form-row-title');
+            if (title) title.textContent = `Record ${idx + 1}`;
+            
+            const removeBtn = row.querySelector('.form-row-remove');
+            if (removeBtn) {
+                if (idx === 0) {
+                    removeBtn.style.display = 'none';
+                } else {
+                    removeBtn.style.display = 'block';
+                    removeBtn.onclick = () => showRemoveRecordDialog(idx);
+                }
+            }
+        });
     }
+    
+    closeConfirmDialog();
 }
 
 function renderFormField(field, rowIndex) {
@@ -234,15 +276,8 @@ function renderFormField(field, rowIndex) {
         case 'select':
             input = `<select id="${fieldId}" name="${field.key}" ${field.required ? 'required' : ''}>
                 <option value="">-- Select --</option>
-                ${field.options.map(opt => `<option value="${opt}">${opt.charAt(0).toUpperCase() + opt.slice(1)}</option>`).join('')}
+                ${field.options.map(opt => `<option value="${opt}">${opt.charAt(0).toUpperCase() + opt.slice(1).replace(/_/g, ' ')}</option>`).join('')}
             </select>`;
-            break;
-        
-        case 'checkbox':
-            input = `<div style="display: flex; align-items: center; gap: 0.5rem;">
-                <input type="checkbox" id="${fieldId}" name="${field.key}" ${field.required ? 'required' : ''}>
-                <label for="${fieldId}" style="margin: 0; font-size: 0.9rem;">Verified</label>
-            </div>`;
             break;
         
         case 'textarea':
@@ -273,8 +308,10 @@ function downloadTemplate() {
         
         XLSX.utils.book_append_sheet(wb, ws, 'Data');
         XLSX.writeFile(wb, `pharmacy_report_${reportType}.xlsx`);
+        
+        showToast('Template downloaded successfully', 'success');
     } catch (err) {
-        showError('Template download failed. Please try again.');
+        showToast('Template download failed. Please try again.', 'error');
     }
 }
 
@@ -335,6 +372,7 @@ function handleFileSelect(event) {
                 document.getElementById('submitBtn').disabled = false;
                 
                 prompt.classList.add('show');
+                showToast(`Excel file validated: ${rows.length} records`, 'success');
             }
         } catch (err) {
             showExcelError('Error reading Excel file: ' + err.message);
@@ -350,6 +388,7 @@ function showExcelError(message) {
     prompt.classList.add('error');
     prompt.innerHTML = `<div class="validation-prompt-title">${message}</div>`;
     prompt.classList.add('show');
+    showToast('Excel validation failed', 'error');
 }
 
 function showExcelPreview(rows) {
@@ -402,21 +441,6 @@ function collectFormData() {
     });
     
     return records;
-}
-
-function validateFormData(records) {
-    const schema = SCHEMAS[reportState.reportType];
-    const errors = [];
-    
-    records.forEach((record, idx) => {
-        schema.forEach(field => {
-            if (field.required && (!record[field.key] || record[field.key] === '')) {
-                errors.push(`Record ${idx + 1}: ${field.label} is required`);
-            }
-        });
-    });
-    
-    return errors;
 }
 
 function validateFormFields() {
@@ -518,13 +542,43 @@ function updateSubmitButtonState() {
     submitBtn.disabled = !confirmCheckbox.checked;
 }
 
-function showError(message) {
-    const errorSummary = document.getElementById('errorSummary');
-    const errorList = document.getElementById('errorList');
+function showToast(message, type = 'success') {
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toastText');
     
-    errorList.innerHTML = `<li>${message}</li>`;
-    errorSummary.classList.add('show');
-    errorSummary.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    toast.className = `toast ${type === 'error' ? 'toast-error' : 'toast-success'}`;
+    toastText.textContent = message;
+    toast.classList.add('show');
+    
+    setTimeout(() => {
+        toast.classList.remove('show');
+    }, 3000);
+}
+
+function showClearDialog() {
+    document.getElementById('clearDialog').classList.add('show');
+}
+
+function closeClearDialog() {
+    document.getElementById('clearDialog').classList.remove('show');
+}
+
+function confirmClearForm() {
+    closeClearDialog();
+    resetForm();
+    showToast('Form cleared', 'success');
+}
+
+function closeConfirmDialog() {
+    document.getElementById('confirmDialog').classList.remove('show');
+    confirmAction = null;
+}
+
+function executeConfirmAction() {
+    if (confirmAction) {
+        confirmAction();
+    }
+    closeConfirmDialog();
 }
 
 function submitReport() {
@@ -535,6 +589,7 @@ function submitReport() {
         const consentError = document.getElementById('consentError');
         consentError.classList.add('show');
         document.getElementById('consentSection').scrollIntoView({ behavior: 'smooth', block: 'center' });
+        showToast('Consent is required to submit identifiable data', 'error');
         return;
     }
     
@@ -549,23 +604,17 @@ function submitReport() {
         const fieldErrors = validateFormFields();
         if (fieldErrors.length > 0) {
             showErrorSummary(fieldErrors);
-            return;
-        }
-        
-        // Validate data
-        const dataErrors = validateFormData(records);
-        if (dataErrors.length > 0) {
-            showErrorSummary(dataErrors);
+            showToast('Please complete all required fields', 'error');
             return;
         }
         
         if (recordCount === 0) {
-            showError('Please enter at least one record');
+            showToast('Please enter at least one record', 'error');
             return;
         }
     } else {
         if (!reportState.excelData) {
-            showError('Please upload and validate an Excel file first');
+            showToast('Please upload and validate an Excel file first', 'error');
             return;
         }
         records = reportState.excelData;
@@ -591,11 +640,11 @@ function submitReport() {
                 resetForm();
             }, 1500);
         } else {
-            showError(data.message || 'Submission failed');
+            showToast(data.message || 'Submission failed', 'error');
         }
     })
     .catch(err => {
-        showError('Error: ' + err.message);
+        showToast('Error: ' + err.message, 'error');
     });
 }
 
@@ -603,6 +652,7 @@ function showSuccessMessage(recordCount) {
     const successMessage = document.getElementById('successMessage');
     successMessage.classList.add('show');
     successMessage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    showToast(`✅ ${recordCount} record(s) submitted successfully`, 'success');
 }
 
 function resetForm() {

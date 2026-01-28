@@ -250,7 +250,6 @@ export class Sidebar extends HTMLElement {
                         <span class="nav-text">Logout</span>
                     </button>
                     <div class="doctor-name">${localStorage.getItem('user_name') || 'User'}</div>
-                    <div class="doctor-email">${localStorage.getItem('user_email') || ''}</div>
                 </div>
             </aside>
         `;

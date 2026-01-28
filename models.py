@@ -162,7 +162,7 @@ class Alert(db.Model):
     acknowledged_by = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) # Pharmacy that acknowledged
     is_read = db.Column(db.Boolean, default=False)
     
-    sender = db.relationship('User', backref=db.backref('sent_alerts', lazy=True))
+    sender = db.relationship('User', foreign_keys=[sender_id], backref=db.backref('sent_alerts', lazy=True))
     acknowledger = db.relationship('User', foreign_keys=[acknowledged_by], backref=db.backref('acknowledged_alerts', lazy=True))
     
     def to_dict(self):
@@ -180,7 +180,10 @@ class Alert(db.Model):
             'status': self.status,
             'created_at': self.created_at.isoformat(),
             'acknowledged_at': self.acknowledged_at.isoformat() if self.acknowledged_at else None,
-            'isRead': self.is_read
+            'isRead': self.is_read,
+            'type': 'safety',  # Default type
+            'reason': 'Safety monitoring',  # Default reason
+            'impact': 'Review recommended'  # Default impact
         }
 
 class SideEffectReport(db.Model):
@@ -217,7 +220,7 @@ class SideEffectReport(db.Model):
             'hospital_name': self.hospital.name if self.hospital else 'N/A'
         }
 
-<<<<<<< HEAD
+
 class PharmacySettings(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     pharmacy_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)

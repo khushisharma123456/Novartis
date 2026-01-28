@@ -819,7 +819,7 @@ def acknowledge_pharmacy_alert(alert_id):
         
         # Update alert status
         alert.status = 'acknowledged'
-        alert.acknowledged_at = datetime.datetime.utcnow()
+        alert.acknowledged_at = datetime.utcnow()
         alert.acknowledged_by = user.id
         
         db.session.commit()
@@ -1739,27 +1739,28 @@ def report_side_effect():
     })
 
 
-    # ========================================================================
-    # AUTOMATIC DATABASE POPULATION
-    # ========================================================================
-    # Automatically populate database on first run or if empty
-    with app.app_context():
-        # Check if database is empty
-        from models import User
-        user_count = User.query.count()
-        
-        if user_count == 0:
-            print("\n" + "="*80)
-            print("DATABASE IS EMPTY - STARTING AUTOMATIC POPULATION")
-            print("="*80)
-            from populate_enhanced_data import populate_database
-            populate_database()
-            print("\n" + "="*80)
-            print("DATABASE POPULATION COMPLETE - Starting Flask server...")
-            print("="*80 + "\n")
-        else:
-            print(f"\nΓ£ô Database already populated ({user_count} users found)")
+# ========================================================================
+# AUTOMATIC DATABASE POPULATION
+# ========================================================================
+# Automatically populate database on first run or if empty
+with app.app_context():
+    # Check if database is empty
+    from models import User
+    user_count = User.query.count()
     
-    # ========================================================================
-    
+    if user_count == 0:
+        print("\n" + "="*80)
+        print("DATABASE IS EMPTY - STARTING AUTOMATIC POPULATION")
+        print("="*80)
+        from populate_enhanced_data import populate_database
+        populate_database()
+        print("\n" + "="*80)
+        print("DATABASE POPULATION COMPLETE - Starting Flask server...")
+        print("="*80 + "\n")
+    else:
+        print(f"\nDatabase already populated ({user_count} users found)")
+
+# ========================================================================
+
+if __name__ == '__main__':
     app.run(debug=True, host='127.0.0.1', port=5000)
