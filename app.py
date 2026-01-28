@@ -127,6 +127,14 @@ def pharmacy_report():
 def pharmacy_alerts():
     return render_template('pharmacy/alerts.html')
 
+@app.route('/pharmacy/settings')
+def pharmacy_settings():
+    return render_template('pharmacy/settings.html')
+
+@app.route('/pharmacy/dispensing-logs')
+def pharmacy_dispensing_logs():
+    return render_template('pharmacy/dispensing-logs.html')
+
 # --- API Routes ---
 
 # Authentication APIs
@@ -744,6 +752,121 @@ def submit_pharmacy_report():
     db.session.commit()
     
     return jsonify({'success': True, 'report_id': patient.id})
+
+@app.route('/api/pharmacy/settings', methods=['GET'])
+def get_pharmacy_settings():
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    
+    user = User.query.get(session['user_id'])
+    if user.role != 'pharmacy':
+        return jsonify({'success': False}), 403
+    
+    # Return default settings (in production, fetch from database)
+    return jsonify({
+        'success': True,
+        'pharmacyName': user.name,
+        'email': user.email,
+        'phone': '',
+        'address': '',
+        'license': '',
+        'shareReports': True,
+        'shareDispensing': True,
+        'anonymizeData': False,
+        'retentionPeriod': '12',
+        'alertFrequency': 'immediate',
+        'notifyEmail': True,
+        'notifySms': False,
+        'notifyDashboard': True,
+        'alertRecalls': True,
+        'alertSafety': True,
+        'alertInteractions': True,
+        'alertDosage': True,
+        'reportingAuthority': '',
+        'reportingThreshold': 'all',
+        'complianceOfficer': '',
+        'autoReport': True
+    })
+
+@app.route('/api/pharmacy/settings/account', methods=['POST'])
+def save_pharmacy_account_settings():
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    
+    user = User.query.get(session['user_id'])
+    if user.role != 'pharmacy':
+        return jsonify({'success': False}), 403
+    
+    data = request.json
+    
+    # In production, save to database
+    # For now, just return success
+    return jsonify({'success': True, 'message': 'Account settings saved'})
+
+@app.route('/api/pharmacy/settings/privacy', methods=['POST'])
+def save_pharmacy_privacy_settings():
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    
+    user = User.query.get(session['user_id'])
+    if user.role != 'pharmacy':
+        return jsonify({'success': False}), 403
+    
+    data = request.json
+    
+    # In production, save to database
+    # For now, just return success
+    return jsonify({'success': True, 'message': 'Privacy preferences saved'})
+
+@app.route('/api/pharmacy/settings/notifications', methods=['POST'])
+def save_pharmacy_notification_settings():
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    
+    user = User.query.get(session['user_id'])
+    if user.role != 'pharmacy':
+        return jsonify({'success': False}), 403
+    
+    data = request.json
+    
+    # In production, save to database
+    # For now, just return success
+    return jsonify({'success': True, 'message': 'Notification preferences saved'})
+
+@app.route('/api/pharmacy/settings/compliance', methods=['POST'])
+def save_pharmacy_compliance_settings():
+    if 'user_id' not in session:
+        return jsonify({'success': False}), 401
+    
+    user = User.query.get(session['user_id'])
+    if user.role != 'pharmacy':
+        return jsonify({'success': False}), 403
+    
+    data = request.json
+    
+    # In production, save to database
+    # For now, just return success
+    return jsonify({'success': True, 'message': 'Compliance settings saved'})
+
+@app.route('/api/pharmacy/alerts/<alert_id>/acknowledge', methods=['POST'])
+def acknowledge_pharmacy_alert(alert_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Not authenticated'}), 401
+    
+    user = User.query.get(session['user_id'])
+    if user.role != 'pharmacy':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
+    
+    # In production, update Firebase Firestore:
+    # 1. Update alert document: status = "acknowledged", acknowledged_by = pharmacy_id, acknowledged_at = timestamp
+    # 2. Log action in alert_activity_logs collection
+    
+    # For now, return success
+    return jsonify({
+        'success': True,
+        'message': 'Alert acknowledged',
+        'acknowledged_at': datetime.datetime.now().isoformat()
+    })
 
 # Case Matching APIs for Duplicate Detection
 @app.route('/api/cases/match', methods=['POST'])

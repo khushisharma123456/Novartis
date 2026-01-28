@@ -17,6 +17,10 @@ from .follow_up_request import FollowUpRequest, FollowUpStatus, FollowUpReason
 from .medical_validation import MedicalValidation, ValidationStatus
 from .audit_log import AuditLog, AuditAction
 from .case_linking_log import CaseLinkingLog
+from .pharmacy_report import (
+    PharmacyReport, AnonymousReport, IdentifiedReport, AggregatedReport,
+    ReportType, ReactionSeverity, ReactionOutcome, AgeGroup
+)
 
 __all__ = [
     'db',
@@ -30,5 +34,7 @@ __all__ = [
     'FollowUpRequest', 'FollowUpStatus', 'FollowUpReason',
     'MedicalValidation', 'ValidationStatus',
     'AuditLog', 'AuditAction',
-    'CaseLinkingLog'
+    'CaseLinkingLog',
+    'PharmacyReport', 'AnonymousReport', 'IdentifiedReport', 'AggregatedReport',
+    'ReportType', 'ReactionSeverity', 'ReactionOutcome', 'AgeGroup'
 ]

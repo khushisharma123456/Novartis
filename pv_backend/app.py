@@ -51,12 +51,14 @@ def create_app(config_name=None):
     from pv_backend.routes.case_routes import case_bp
     from pv_backend.routes.followup_routes import followup_bp
     from pv_backend.routes.excel_routes import excel_upload_bp
+    from pv_backend.routes.pharmacy_report_routes import pharmacy_report_bp
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(submission_bp)
     app.register_blueprint(case_bp)
     app.register_blueprint(followup_bp)
     app.register_blueprint(excel_upload_bp)
+    app.register_blueprint(pharmacy_report_bp)
     
     # Create tables
     with app.app_context():
@@ -156,6 +158,12 @@ def create_app(config_name=None):
         if 'user_id' not in session or session.get('role') != 'pharmacy':
             return redirect(url_for('login_page'))
         return render_template('pharmacy/report.html')
+    
+    @app.route('/pharmacy/reports')
+    def pharmacy_reports():
+        if 'user_id' not in session or session.get('role') != 'pharmacy':
+            return redirect(url_for('login_page'))
+        return render_template('pharmacy/reports.html')
     
     # Health check endpoint
     @app.route('/health')
