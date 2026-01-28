@@ -1493,6 +1493,18 @@ def hospital_settings():
         return redirect(url_for('login_page'))
     return render_template('hospital/settings.html', active_page='settings')
 
+@app.route('/hospital/doctors')
+def hospital_doctors():
+    if 'user_id' not in session or session.get('role') != 'hospital':
+        return redirect(url_for('login_page'))
+    return render_template('hospital/doctors.html', active_page='doctors')
+
+@app.route('/hospital/drugs')
+def hospital_drugs():
+    if 'user_id' not in session or session.get('role') != 'hospital':
+        return redirect(url_for('login_page'))
+    return render_template('hospital/drugs.html', active_page='drugs')
+
 # Hospital API Endpoints
 @app.route('/api/hospital/info')
 def get_hospital_info():
@@ -1641,6 +1653,56 @@ def save_doctor_notification_settings():
 # ========================================================================
 # HOSPITAL MANAGEMENT APIs
 # ========================================================================
+
+@app.route('/api/hospital/patients', methods=['GET'])
+def get_hospital_patients():
+    """Get all patients linked to this hospital's doctors"""
+    if 'user_id' not in session or session.get('role') != 'hospital':
+        return jsonify({'success': False, 'message': 'Not authorized'}), 403
+    
+    try:
+        hospital_id = session['user_id']
+        
+        # Get all doctor IDs associated with this hospital using the association table
+        doctor_ids = db.session.query(hospital_doctor.c.doctor_id).filter(
+            hospital_doctor.c.hospital_id == hospital_id
+        ).all()
+        doctor_ids = [d[0] for d in doctor_ids]
+        
+        if not doctor_ids:
+            return jsonify({'success': True, 'patients': []})
+        
+        # Get all patients from these doctors
+        patients_data = []
+        seen_patient_ids = set()
+        
+        for doctor_id in doctor_ids:
+            # Get patients for each doctor
+            doctor_patients = db.session.query(Patient).join(
+                doctor_patient, Patient.id == doctor_patient.c.patient_id
+            ).filter(doctor_patient.c.doctor_id == doctor_id).all()
+            
+            for patient in doctor_patients:
+                if patient.id not in seen_patient_ids:
+                    seen_patient_ids.add(patient.id)
+                    patients_data.append({
+                        'id': patient.id,
+                        'name': patient.name,
+                        'phone': patient.phone,
+                        'age': patient.age,
+                        'gender': patient.gender,
+                        'drugName': patient.drug_name,
+                        'symptoms': patient.symptoms,
+                        'riskLevel': patient.risk_level,
+                        'created_at': patient.created_at.isoformat() if patient.created_at else None
+                    })
+        
+        return jsonify({'success': True, 'patients': patients_data})
+    except Exception as e:
+        print(f"Error fetching hospital patients: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 @app.route('/api/hospital/doctors', methods=['GET'])
 def get_hospital_doctors():
