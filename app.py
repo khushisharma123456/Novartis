@@ -761,18 +761,28 @@ def get_stats():
         
         avg_age = sum([p.age for p in patients]) / len(patients) if patients else 0
         
+        # Calculate Age Distribution
+        age_dist = {
+            '0-18': len([p for p in patients if p.age <= 18]),
+            '19-40': len([p for p in patients if 19 <= p.age <= 40]),
+            '41-60': len([p for p in patients if 41 <= p.age <= 60]),
+            '60+': len([p for p in patients if p.age > 60])
+        }
+        
     elif user.role == 'doctor':
         patients = Patient.query.filter(Patient.doctors.contains(user)).all()
         total_reports = len(patients)
         high_risk = len([p for p in patients if p.risk_level == 'High'])
         risk_dist = {'low': 0, 'medium': 0, 'high': 0}
         gender_dist = {'male': 0, 'female': 0, 'other': 0}
+        age_dist = {'0-18': 0, '19-40': 0, '41-60': 0, '60+': 0}
         avg_age = 0
     else:
         total_reports = 0
         high_risk = 0
         risk_dist = {'low': 0, 'medium': 0, 'high': 0}
         gender_dist = {'male': 0, 'female': 0, 'other': 0}
+        age_dist = {'0-18': 0, '19-40': 0, '41-60': 0, '60+': 0}
         avg_age = 0
     
     return jsonify({
@@ -781,7 +791,8 @@ def get_stats():
         'highRiskCount': high_risk,
         'avgAge': round(avg_age, 1),
         'riskDist': risk_dist,
-        'genderDist': gender_dist
+        'genderDist': gender_dist,
+        'ageDist': age_dist
     })
 
 # Drug APIs
@@ -2200,6 +2211,67 @@ def get_case_quality_details(case_id):
             } for a in agents
         ]
     })
+
+@app.route('/pharma/patient-recall')
+def pharma_patient_recall():
+    if 'user_id' not in session or session.get('role') != 'pharma':
+        return redirect(url_for('login_page'))
+    return render_template('pharma/patient-recall.html', active_page='patient-recall')
+
+@app.route('/api/patients/recalled', methods=['GET'])
+def get_recalled_patients():
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        
+    try:
+        # Get all recalled patients
+        recalled_patients = Patient.query.filter_by(recalled=True).order_by(Patient.recall_date.desc()).all()
+        return jsonify({
+            'success': True,
+            'patients': [p.to_dict() for p in recalled_patients]
+        })
+    except Exception as e:
+        print(f"Error fetching recalled patients: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/api/patients/<patient_id>/recall', methods=['POST'])
+def recall_patient(patient_id):
+    if 'user_id' not in session:
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 401
+        
+    try:
+        data = request.json
+        reason = data.get('reason')
+        
+        patient = Patient.query.get(patient_id)
+        if not patient:
+            return jsonify({'success': False, 'message': 'Patient not found'}), 404
+            
+        patient.recalled = True
+        patient.recall_reason = reason
+        patient.recall_date = datetime.utcnow()
+        patient.recalled_by = session['user_id']
+        patient.follow_up_required = True  # Flag for hospital dashboard
+        
+        # Create a critical alert for the hospital dashboard
+        alert = Alert(
+            drug_name=patient.drug_name,
+            title=f"URGENT: Patient Recall - {patient.name}",
+            message=f"Patient {patient.name} (ID: {patient.id}) has been recalled. Reason: {reason}",
+            severity='Critical',
+            sender_id=session['user_id'],
+            recipient_type='all', # Ideally target specific doctors/hospitals linked to patient
+            status='new'
+        )
+        db.session.add(alert)
+        
+        db.session.commit()
+        
+        return jsonify({'success': True, 'message': 'Patient recalled successfully'})
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error recalling patient: {e}")
+        return jsonify({'success': False, 'message': str(e)}), 500
 
 # Hospital Routes
 @app.route('/hospital/dashboard')
