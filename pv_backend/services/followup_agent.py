@@ -30,25 +30,29 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
+from dotenv import load_dotenv
 
-# Gmail Configuration - Set these via environment variables
+# Load environment variables from .env file
+load_dotenv()
+
+# Gmail Configuration - Set these via environment variables in .env file
 GMAIL_CONFIG = {
     'smtp_server': 'smtp.gmail.com',
     'smtp_port': 587,
-    'email': os.environ.get('GMAIL_ADDRESS', 'suhanig2258@gmail.com'),
-    'password': os.environ.get('GMAIL_APP_PASSWORD', 'aeiv yfem vtzu bczt'),
+    'email': os.environ.get('GMAIL_ADDRESS'),
+    'password': os.environ.get('GMAIL_APP_PASSWORD'),
 }
 
-# Twilio WhatsApp Configuration - Set these via environment variables
+# Twilio WhatsApp Configuration - Set these via environment variables in .env file
 TWILIO_CONFIG = {
-    'account_sid': os.environ.get('TWILIO_ACCOUNT_SID', 'AC767ece26bfea8e5b3cf34bf6a0dc6a3b'),
-    'auth_token': os.environ.get('TWILIO_AUTH_TOKEN', '1ceeb28931d5cd72036092d481464b79'),
+    'account_sid': os.environ.get('TWILIO_ACCOUNT_SID'),
+    'auth_token': os.environ.get('TWILIO_AUTH_TOKEN'),
     'whatsapp_from': os.environ.get('TWILIO_WHATSAPP_FROM', 'whatsapp:+14155238886'),
 }
 
-# Base URL for the application (update this for your deployment)
-# Using ngrok for public access - update when ngrok restarts
-APP_BASE_URL = os.environ.get('APP_BASE_URL', 'https://embryotrophic-rutha-inconvertibly.ngrok-free.app')
+# Base URL for the application (set in .env file)
+# Using ngrok for public access - update APP_BASE_URL in .env when ngrok restarts
+APP_BASE_URL = os.environ.get('APP_BASE_URL', 'http://localhost:5000')
 
 
 class FollowupAgent:
