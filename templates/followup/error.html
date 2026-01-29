@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Follow-up Error</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .error-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+            padding: 50px;
+            text-align: center;
+            max-width: 500px;
+        }
+        
+        .error-icon {
+            width: 80px;
+            height: 80px;
+            background: #fee2e2;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+        }
+        
+        .error-icon svg {
+            width: 40px;
+            height: 40px;
+            color: #dc2626;
+        }
+        
+        h1 {
+            color: #991b1b;
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+        }
+        
+        p {
+            color: #6b7280;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+        
+        .error-details {
+            background: #fef2f2;
+            padding: 15px 20px;
+            border-radius: 8px;
+            border-left: 4px solid #dc2626;
+            text-align: left;
+            margin-bottom: 25px;
+        }
+        
+        .error-details code {
+            color: #991b1b;
+            font-weight: 600;
+        }
+        
+        .help-text {
+            font-size: 0.9rem;
+            color: #9ca3af;
+        }
+        
+        a {
+            color: #3b82f6;
+            text-decoration: none;
+        }
+        
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="error-card">
+        <div class="error-icon">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+        </div>
+        
+        <h1>Unable to Access Form</h1>
+        
+        <p>We couldn't load the follow-up questionnaire. This might happen if:</p>
+        
+        <div class="error-details">
+            <code>{{ error }}</code>
+        </div>
+        
+        <p class="help-text">
+            If you believe this is an error, please contact your healthcare provider or the person who sent you this link.
+        </p>
+    </div>
+</body>
+</html>

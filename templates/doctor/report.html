@@ -159,20 +159,36 @@
                         <div id="manualPatientMode" class="hidden-section">
                             <div class="form-group">
                                 <label class="form-label">Patient Name <span class="required">*</span></label>
-                                <input type="text" class="form-control" placeholder="Full name">
+                                <input type="text" class="form-control" id="manualPatientName" placeholder="Full name">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Age <span class="required">*</span></label>
-                                <input type="number" class="form-control" placeholder="Age" min="0" max="150">
+                                <input type="number" class="form-control" id="manualPatientAge" placeholder="Age" min="0" max="150">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Gender <span class="required">*</span></label>
-                                <select class="form-control">
+                                <select class="form-control" id="manualPatientGender">
                                     <option value="">Select gender</option>
                                     <option value="Male">Male</option>
                                     <option value="Female">Female</option>
                                     <option value="Other">Other</option>
                                 </select>
+                            </div>
+                            
+                            <!-- Optional Contact Details for Follow-up -->
+                            <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px dashed #E5E7EB;">
+                                <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">
+                                    <i data-lucide="info" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
+                                    Optional contact details for follow-up requests
+                                </p>
+                                <div class="form-group">
+                                    <label class="form-label">Phone Number <span style="color: var(--text-muted); font-weight: normal;">(Optional)</span></label>
+                                    <input type="tel" class="form-control" id="manualPatientPhone" placeholder="e.g., +91 98765 43210">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Email Address <span style="color: var(--text-muted); font-weight: normal;">(Optional)</span></label>
+                                    <input type="email" class="form-control" id="manualPatientEmail" placeholder="e.g., patient@email.com">
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -478,17 +494,21 @@
             if (currentReportType === 'patient-linked') {
                 const patientSelect = document.getElementById('patientSelect');
                 const manualMode = document.getElementById('manualPatientMode');
+                const existingMode = document.getElementById('existingPatientMode');
                 
-                if (manualMode.classList.contains('show')) {
+                // Check if manual mode is active (not hidden)
+                if (!manualMode.classList.contains('hidden-section')) {
+                    // Manual entry mode - validate name, age, gender
                     const patientName = manualMode.querySelector('input[placeholder="Full name"]');
                     const age = manualMode.querySelector('input[placeholder="Age"]');
                     const gender = manualMode.querySelector('select');
                     
-                    if (!patientName.value.trim()) missingFields.push('Patient Name');
-                    if (!age.value) missingFields.push('Age');
-                    if (!gender.value) missingFields.push('Gender');
+                    if (!patientName || !patientName.value.trim()) missingFields.push('Patient Name');
+                    if (!age || !age.value) missingFields.push('Age');
+                    if (!gender || !gender.value) missingFields.push('Gender');
                 } else {
-                    if (!patientSelect.value) missingFields.push('Patient Selection');
+                    // Existing patient mode - validate selection
+                    if (!patientSelect || !patientSelect.value) missingFields.push('Patient Selection');
                 }
             }
 
@@ -530,8 +550,8 @@
 
             // All fields filled - submit to database first
             const patientId = currentReportType === 'patient-linked' ? 
-                (document.getElementById('existingPatientMode').classList.contains('show') ? 
-                    document.getElementById('patientSelect').value : null) : null;
+                (!document.getElementById('manualPatientMode').classList.contains('hidden-section') ? 
+                    null : document.getElementById('patientSelect').value) : null;
             
             submitReportToDatabase(currentReportType, patientId).then(success => {
                 if (success) {

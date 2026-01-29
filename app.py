@@ -11,6 +11,7 @@ from models import db, User, Patient, Drug, Alert, CaseAgent, FollowUp, SideEffe
 from pv_backend.services.case_matching import match_new_case, should_accept_case
 from pv_backend.services.case_scoring import CaseScoringEngine, evaluate_case, score_case, check_followup
 from pv_backend.services.quality_agent import QualityAgentOrchestrator, FollowUpManager
+from pv_backend.routes.followup_routes import init_followup_routes
 from auth_config import JWTConfig, token_required, session_required, SESSION_TIMEOUT_MINUTES, TOKEN_EXPIRY_HOURS
 import os
 import random
@@ -256,7 +257,12 @@ def get_patients():
         'drugName': p.drug_name,
         'symptoms': p.symptoms,
         'riskLevel': p.risk_level,
-        'createdAt': p.created_at.isoformat()
+        'createdAt': p.created_at.isoformat() if p.created_at else None,
+        # Case Scoring summary
+        'caseScore': p.case_score,
+        'strengthLevel': p.strength_level,
+        'followUpRequired': p.follow_up_required,
+        'caseStatus': p.case_status
     } for p in patients])
 
 @app.route('/api/patients', methods=['POST'])
@@ -348,13 +354,38 @@ def get_patient(patient_id):
         'patient': {
             'id': patient.id,
             'name': patient.name,
+            'phone': patient.phone,
+            'email': patient.email,
             'age': patient.age,
             'gender': patient.gender,
             'drug_name': patient.drug_name,
             'symptoms': patient.symptoms,
             'risk_level': patient.risk_level,
-            'created_at': patient.created_at.isoformat(),
-            'created_by': patient.created_by
+            'created_at': patient.created_at.isoformat() if patient.created_at else None,
+            'created_by': patient.created_by,
+            # Case Linkage
+            'case_status': patient.case_status,
+            'linked_case_id': patient.linked_case_id,
+            'match_score': patient.match_score,
+            'match_notes': patient.match_notes,
+            # Case Scoring
+            'case_scoring': {
+                'strength_level': patient.strength_level,
+                'strength_score': patient.strength_score,
+                'completeness_score': round(patient.completeness_score * 100, 1) if patient.completeness_score else 0,
+                'temporal_clarity_score': round(patient.temporal_clarity_score * 100, 1) if patient.temporal_clarity_score else 0,
+                'medical_confirmation_score': round(patient.medical_confirmation_score * 100, 1) if patient.medical_confirmation_score else 0,
+                'followup_responsiveness_score': round(patient.followup_responsiveness_score * 100, 1) if patient.followup_responsiveness_score else 0,
+                'case_score': patient.case_score,
+                'polarity': patient.polarity,
+                'case_score_interpretation': patient.case_score_interpretation,
+                'follow_up_required': patient.follow_up_required,
+                'evaluated_at': patient.evaluated_at.isoformat() if patient.evaluated_at else None
+            },
+            # Follow-up Email Status
+            'followup_pending': patient.followup_pending if hasattr(patient, 'followup_pending') else False,
+            'followup_completed': patient.followup_completed if hasattr(patient, 'followup_completed') else False,
+            'followup_sent_date': patient.followup_sent_date.isoformat() if hasattr(patient, 'followup_sent_date') and patient.followup_sent_date else None
         }
     })
 
@@ -1824,6 +1855,7 @@ def get_hospital_patients():
                         'id': patient.id,
                         'name': patient.name,
                         'phone': patient.phone,
+                        'email': patient.email,
                         'age': patient.age,
                         'gender': patient.gender,
                         'drugName': patient.drug_name,
@@ -2023,22 +2055,150 @@ def get_hospital_analytics():
 
 @app.route('/api/report-side-effect', methods=['POST'])
 def report_side_effect():
-    """Doctor reports a side effect - sends to hospital AND pharma company"""
+    """
+    Doctor reports a side effect - with integrated case matching
+    
+    Flow:
+    1. Check if report links to existing patient or needs new patient record
+    2. Use case matching to find potential duplicates
+    3. Create/link patient record as needed
+    4. Create side effect report
+    5. Send alerts to pharma company
+    """
     if 'user_id' not in session or session.get('role') != 'doctor':
         return jsonify({'success': False, 'message': 'Not authorized'}), 403
     
     try:
         data = request.json
         doctor = User.query.get(session['user_id'])
+        report_type = data.get('report_type', 'anonymised')
         
         # Find the drug and its company
         drug = Drug.query.filter_by(name=data.get('drug_name')).first()
         
-        # Create side effect report
+        patient_id = data.get('patient_id')
+        case_matching_result = None
+        new_patient_created = False
+        
+        # === STEP 1: Handle Patient Record ===
+        if report_type == 'patient-linked':
+            if patient_id:
+                # Using existing patient from dropdown
+                existing_patient = Patient.query.get(patient_id)
+                if not existing_patient:
+                    return jsonify({'success': False, 'message': f'Patient {patient_id} not found'}), 404
+            else:
+                # New patient - need to check case matching first
+                patient_name = data.get('patient_name')
+                patient_age = data.get('patient_age')
+                patient_gender = data.get('patient_gender')
+                symptoms = data.get('side_effect', '')
+                
+                # Validate required patient fields for new patient creation
+                if not patient_name or not str(patient_name).strip():
+                    return jsonify({'success': False, 'message': 'Patient name is required for patient-linked reports'}), 400
+                if not patient_age:
+                    return jsonify({'success': False, 'message': 'Patient age is required for patient-linked reports'}), 400
+                if not patient_gender or not str(patient_gender).strip():
+                    return jsonify({'success': False, 'message': 'Patient gender is required for patient-linked reports'}), 400
+                
+                # Prepare case data for matching
+                new_case_data = {
+                    'drug_name': data.get('drug_name', ''),
+                    'symptoms': symptoms,
+                    'age': int(patient_age),
+                    'gender': patient_gender
+                }
+                
+                # === STEP 2: Case Matching - Check for duplicates ===
+                # Get existing patients for this drug
+                existing_patients = Patient.query.filter_by(
+                    drug_name=data.get('drug_name')
+                ).filter(Patient.case_status != 'Discarded').all()
+                
+                match_result = match_new_case(new_case_data, existing_patients, threshold=0.75)
+                action_recommendation = should_accept_case(match_result, auto_discard_threshold=0.90)
+                
+                case_matching_result = {
+                    'action': action_recommendation['action'],
+                    'reason': action_recommendation['reason'],
+                    'total_matches': match_result.get('total_matches', 0),
+                    'top_match': match_result.get('top_match', None)
+                }
+                
+                # === STEP 3: Create or Link Patient Based on Match ===
+                if action_recommendation['action'] == 'ACCEPT' or match_result.get('total_matches', 0) == 0:
+                    # No match found - create new patient record
+                    patient_id = f"PT-{random.randint(10000, 99999)}"
+                    while Patient.query.get(patient_id):
+                        patient_id = f"PT-{random.randint(10000, 99999)}"
+                    
+                    new_patient = Patient(
+                        id=patient_id,
+                        created_by=doctor.id,
+                        name=patient_name,
+                        phone=data.get('patient_phone'),
+                        email=data.get('patient_email'),
+                        age=int(patient_age),
+                        gender=patient_gender,
+                        drug_name=data.get('drug_name'),
+                        symptoms=symptoms,
+                        risk_level=data.get('severity', 'Medium'),
+                        case_status='Active'
+                    )
+                    
+                    # Add doctor-patient relationship
+                    new_patient.doctors.append(doctor)
+                    
+                    db.session.add(new_patient)
+                    db.session.flush()  # Get the ID without committing
+                    
+                    new_patient_created = True
+                    case_matching_result['action'] = 'NEW'
+                    case_matching_result['patient_id'] = patient_id
+                    
+                elif action_recommendation['action'] == 'REVIEW' or action_recommendation['action'] == 'DISCARD':
+                    # Potential duplicate found - link to existing case
+                    top_match = match_result['top_match']
+                    linked_patient_id = top_match['case_id']
+                    
+                    # Create new patient record but link it to the existing case
+                    patient_id = f"PT-{random.randint(10000, 99999)}"
+                    while Patient.query.get(patient_id):
+                        patient_id = f"PT-{random.randint(10000, 99999)}"
+                    
+                    new_patient = Patient(
+                        id=patient_id,
+                        created_by=doctor.id,
+                        name=patient_name,
+                        phone=data.get('patient_phone'),
+                        email=data.get('patient_email'),
+                        age=int(patient_age),
+                        gender=patient_gender,
+                        drug_name=data.get('drug_name'),
+                        symptoms=symptoms,
+                        risk_level=data.get('severity', 'Medium'),
+                        case_status='Linked',
+                        linked_case_id=linked_patient_id,
+                        match_score=top_match['similarity_score'],
+                        match_notes=f"Auto-linked: {action_recommendation['reason']}. Confidence: {top_match['confidence']}"
+                    )
+                    
+                    new_patient.doctors.append(doctor)
+                    db.session.add(new_patient)
+                    db.session.flush()
+                    
+                    new_patient_created = True
+                    case_matching_result['action'] = 'LINKED'
+                    case_matching_result['patient_id'] = patient_id
+                    case_matching_result['linked_to'] = linked_patient_id
+                    case_matching_result['match_score'] = top_match['similarity_score']
+        
+        # === STEP 4: Create Side Effect Report ===
         report = SideEffectReport(
-            patient_id=data.get('patient_id'),
+            patient_id=patient_id,
             doctor_id=doctor.id,
-            hospital_id=None,  # Set to None for now
+            hospital_id=None,
             drug_name=data.get('drug_name'),
             drug_id=drug.id if drug else None,
             side_effect=data.get('side_effect'),
@@ -2048,9 +2208,58 @@ def report_side_effect():
         )
         
         db.session.add(report)
-        db.session.commit()
         
-        # Send alert to pharma company if drug is found
+        # === STEP 5: Case Scoring - Evaluate & Score the Case ===
+        case_scoring_result = None
+        if new_patient_created and patient_id:
+            # Get the newly created patient
+            created_patient = Patient.query.get(patient_id)
+            if created_patient:
+                # Mark as doctor confirmed since doctor is submitting
+                created_patient.doctor_confirmed = True
+                created_patient.doctor_confirmation_date = datetime.utcnow()
+                
+                # Evaluate case strength (Step 7)
+                strength_result = evaluate_case(created_patient)
+                
+                # Calculate final score (Step 8)
+                score_result = score_case(created_patient)
+                
+                # Check follow-up triggers (Step 9)
+                followup_result = check_followup(created_patient)
+                
+                case_scoring_result = {
+                    'strength': strength_result,
+                    'score': score_result,
+                    'followup': followup_result
+                }
+                
+                # === STEP 5b: Auto-send Follow-up Email if patient has email ===
+                if created_patient.email:
+                    try:
+                        from pv_backend.services.followup_agent import FollowupAgent
+                        from pv_backend.routes.followup_routes import store_followup_token
+                        
+                        agent = FollowupAgent()
+                        token = agent.generate_followup_token(created_patient.id)
+                        store_followup_token(created_patient.id, token)
+                        
+                        email_result = agent.send_followup_email(created_patient, token)
+                        
+                        if email_result['success']:
+                            created_patient.followup_sent_date = datetime.utcnow()
+                            created_patient.followup_pending = True
+                            case_scoring_result['followup_email_sent'] = True
+                            case_scoring_result['followup_email_to'] = created_patient.email
+                        else:
+                            case_scoring_result['followup_email_sent'] = False
+                            case_scoring_result['followup_email_error'] = email_result.get('error')
+                    except Exception as email_err:
+                        print(f"Failed to send follow-up email: {email_err}")
+                        case_scoring_result['followup_email_sent'] = False
+                        case_scoring_result['followup_email_error'] = str(email_err)
+        
+        # === STEP 6: Send Alert to Pharma Company ===
         if drug and drug.company:
             severity_level = data.get('severity', 'Medium')
             alert_message = f"Side Effect Report: {data.get('drug_name')} - {data.get('side_effect')[:100]}"
@@ -2065,15 +2274,27 @@ def report_side_effect():
                 is_read=False
             )
             db.session.add(company_alert)
-            db.session.commit()
         
-        return jsonify({
+        db.session.commit()
+        
+        response_data = {
             'success': True, 
-            'message': 'Side effect reported and alert sent to company',
+            'message': 'Side effect reported successfully',
             'report_id': report.id,
+            'patient_id': patient_id,
+            'new_patient_created': new_patient_created,
             'hospital_notified': report.hospital_notified,
             'company_notified': report.company_notified
-        })
+        }
+        
+        if case_matching_result:
+            response_data['case_matching'] = case_matching_result
+        
+        if case_scoring_result:
+            response_data['case_scoring'] = case_scoring_result
+        
+        return jsonify(response_data)
+        
     except Exception as e:
         db.session.rollback()
         print(f"Error in report_side_effect: {str(e)}")
@@ -2110,6 +2331,9 @@ else:
     # Skip auto-population
     with app.app_context():
         db.create_all()
+
+# Initialize follow-up routes
+init_followup_routes(app, db, Patient)
 
 # ========================================================================
 

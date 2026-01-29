@@ -44,6 +44,7 @@ class Patient(db.Model):
     # Demographics
     name = db.Column(db.String(100), nullable=False)
     phone = db.Column(db.String(20), nullable=True)
+    email = db.Column(db.String(120), nullable=True)  # For follow-up contact
     age = db.Column(db.Integer, nullable=False)
     gender = db.Column(db.String(20), nullable=False)
     
@@ -88,6 +89,13 @@ class Patient(db.Model):
     last_followup_date = db.Column(db.DateTime, nullable=True)
     followup_response_time_days = db.Column(db.Integer, nullable=True)
     followup_response_quality = db.Column(db.String(20), nullable=True)  # Poor, Fair, Good
+    followup_response_date = db.Column(db.DateTime, nullable=True)  # When patient responded
+    followup_responded = db.Column(db.Boolean, default=False)  # Whether patient has responded
+    
+    # Follow-up Email Tracking
+    followup_sent_date = db.Column(db.DateTime, nullable=True)  # When email was sent
+    followup_pending = db.Column(db.Boolean, default=False)  # Waiting for response
+    followup_completed = db.Column(db.Boolean, default=False)  # Response received
     
     # Overall Strength
     strength_level = db.Column(db.String(20), default='Not Evaluated')  # Low, Medium, High, Not Evaluated

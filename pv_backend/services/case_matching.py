@@ -190,8 +190,10 @@ class CaseMatchingEngine:
         if not existing_cases:
             return {
                 'matches': [],
+                'total_matches': 0,
                 'has_exact_match': False,
-                'recommendation': 'ACCEPT - No existing cases to match'
+                'recommendation': 'ACCEPT - No existing cases to match',
+                'top_match': None
             }
         
         # Calculate similarity for all existing cases

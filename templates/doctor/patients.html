@@ -367,58 +367,197 @@ window.renderDetail = function(id) {
     if (!p) return;
 
     const panel = document.getElementById('detail-panel');
+    
+    // Fetch full patient details including case scoring
+    fetch(`/api/patients/${id}`)
+        .then(res => res.json())
+        .then(data => {
+            if (!data.success) {
+                console.error('Failed to fetch patient details');
+                return;
+            }
+            
+            const patient = data.patient;
+            const scoring = patient.case_scoring || {};
+            
+            // Determine score color
+            let scoreColor = '#6B7280'; // gray for unknown
+            let scoreText = 'Not Scored';
+            if (scoring.case_score !== null && scoring.case_score !== undefined) {
+                if (scoring.case_score <= -1) {
+                    scoreColor = '#DC2626'; // red for adverse
+                    scoreText = `Score: ${scoring.case_score}`;
+                } else if (scoring.case_score >= 1) {
+                    scoreColor = '#10B981'; // green for positive
+                    scoreText = `Score: +${scoring.case_score}`;
+                } else {
+                    scoreColor = '#F59E0B'; // amber for unclear
+                    scoreText = `Score: ${scoring.case_score}`;
+                }
+            }
 
-    if (window.currentMode === 'identity') {
-        panel.innerHTML = `
-            <div class="detail-section">
-                <div style="display: flex; justify-content: space-between; align-items: start;">
-                    <div>
-                        <h2 style="margin-bottom: 0.5rem;">${p.name}</h2>
-                        <p style="color: var(--text-muted);">
-                            ID: ${p.patientId} • ${p.age} yrs • ${p.gender}
-                            ${p.phone ? `<br>Phone: ${p.phone}` : ''}
-                        </p>
+            if (window.currentMode === 'identity') {
+                panel.innerHTML = `
+                    <div class="detail-section">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div>
+                                <h2 style="margin-bottom: 0.5rem;">${p.name}</h2>
+                                <p style="color: var(--text-muted);">
+                                    ID: ${patient.id || p.patientId || p.id} • ${p.age} yrs • ${p.gender}
+                                </p>
+                            </div>
+                            <div style="text-align: right;">
+                                <span class="badge badge-${(p.riskLevel || 'low').toLowerCase()}">${p.riskLevel || 'Low'} Risk</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Contact Information -->
+                        ${(patient.phone || patient.email) ? `
+                            <div style="margin-top: 1rem; padding: 0.75rem; background: #F0FDF4; border-radius: 6px; border-left: 3px solid #22C55E;">
+                                <p style="font-size: 0.8rem; font-weight: 600; color: #166534; margin-bottom: 0.5rem;">
+                                    <i data-lucide="contact" style="width: 14px; height: 14px; display: inline-block; vertical-align: middle;"></i>
+                                    Contact for Follow-up
+                                </p>
+                                ${patient.phone ? `<p style="font-size: 0.85rem; margin: 0.25rem 0;"><i data-lucide="phone" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 0.5rem;"></i>${patient.phone}</p>` : ''}
+                                ${patient.email ? `<p style="font-size: 0.85rem; margin: 0.25rem 0;"><i data-lucide="mail" style="width: 12px; height: 12px; display: inline-block; vertical-align: middle; margin-right: 0.5rem;"></i>${patient.email}</p>` : ''}
+                            </div>
+                        ` : ''}
                     </div>
-                    <div style="text-align: right;">
-                        <span class="badge badge-${(p.riskLevel || 'low').toLowerCase()}">${p.riskLevel || 'Low'} Risk</span>
+                    <div class="detail-section">
+                        <h4>Medication</h4>
+                        <p><strong>${p.drugName}</strong></p>
                     </div>
-                </div>
-            </div>
-            <div class="detail-section">
-                <h4>Medication</h4>
-                <p><strong>${p.drugName}</strong></p>
-            </div>
-            <div class="detail-section">
-                <h4>Timeline</h4>
-                <p>Reported: ${new Date(p.created_at || Date.now()).toLocaleDateString()}</p>
-                <p>${p.symptoms || 'No symptoms.'}</p>
-            </div>
-        `;
-    } else {
-        panel.innerHTML = `
-            <div class="detail-section">
-                <div style="display: flex; justify-content: space-between; align-items: start;">
-                    <div>
-                        <h2 style="margin-bottom: 0.5rem;">${p.anonId}</h2>
-                        <p style="color: var(--text-muted);">
-                            Age Group: ${p.ageGroup} • ${p.gender}
-                        </p>
+                    <div class="detail-section">
+                        <h4>Timeline</h4>
+                        <p>Reported: ${new Date(p.created_at || p.createdAt || Date.now()).toLocaleDateString()}</p>
+                        <p>${p.symptoms || 'No symptoms.'}</p>
                     </div>
-                    <div style="text-align: right;">
-                        <span class="badge badge-${(p.riskLevel || 'low').toLowerCase()}">${p.riskLevel || 'Low'}</span>
+                    
+                    <!-- Case Scoring Section -->
+                    <div class="detail-section" style="background: linear-gradient(135deg, #F0F7FF 0%, #F9FAFB 100%); border-radius: 8px; padding: 1rem; margin-top: 1rem;">
+                        <h4 style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem;">
+                            <i data-lucide="bar-chart-2" style="width: 18px; height: 18px;"></i>
+                            Case Scoring
+                        </h4>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                            <div style="background: white; padding: 0.75rem; border-radius: 6px; text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: ${scoreColor};">${scoreText}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">${scoring.case_score_interpretation || 'Not evaluated'}</div>
+                            </div>
+                            <div style="background: white; padding: 0.75rem; border-radius: 6px; text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: ${scoring.strength_level === 'High' ? '#10B981' : scoring.strength_level === 'Medium' ? '#F59E0B' : '#6B7280'};">
+                                    ${scoring.strength_level || 'N/A'}
+                                </div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted);">Strength Level</div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: white; padding: 0.75rem; border-radius: 6px; margin-bottom: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                <span style="font-size: 0.85rem;">Completeness</span>
+                                <span style="font-size: 0.85rem; font-weight: 600;">${scoring.completeness_score || 0}%</span>
+                            </div>
+                            <div style="height: 6px; background: #E5E7EB; border-radius: 3px; overflow: hidden;">
+                                <div style="height: 100%; width: ${scoring.completeness_score || 0}%; background: #3B82F6; border-radius: 3px;"></div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: white; padding: 0.75rem; border-radius: 6px; margin-bottom: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                <span style="font-size: 0.85rem;">Timeline Clarity</span>
+                                <span style="font-size: 0.85rem; font-weight: 600;">${scoring.temporal_clarity_score || 0}%</span>
+                            </div>
+                            <div style="height: 6px; background: #E5E7EB; border-radius: 3px; overflow: hidden;">
+                                <div style="height: 100%; width: ${scoring.temporal_clarity_score || 0}%; background: #8B5CF6; border-radius: 3px;"></div>
+                            </div>
+                        </div>
+                        
+                        <div style="background: white; padding: 0.75rem; border-radius: 6px; margin-bottom: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; margin-bottom: 0.25rem;">
+                                <span style="font-size: 0.85rem;">Medical Confirmation</span>
+                                <span style="font-size: 0.85rem; font-weight: 600;">${scoring.medical_confirmation_score || 0}%</span>
+                            </div>
+                            <div style="height: 6px; background: #E5E7EB; border-radius: 3px; overflow: hidden;">
+                                <div style="height: 100%; width: ${scoring.medical_confirmation_score || 0}%; background: #10B981; border-radius: 3px;"></div>
+                            </div>
+                        </div>
+                        
+                        ${scoring.follow_up_required ? `
+                            <div style="background: #FEF3C7; padding: 0.75rem; border-radius: 6px; display: flex; align-items: center; gap: 0.5rem; margin-top: 0.75rem;">
+                                <i data-lucide="alert-triangle" style="width: 16px; height: 16px; color: #D97706;"></i>
+                                <span style="font-size: 0.85rem; color: #92400E; font-weight: 500;">Follow-up Required</span>
+                                ${patient.followup_pending ? `<span style="font-size: 0.7rem; color: #059669; margin-left: auto;">✉️ Email Sent</span>` : ''}
+                            </div>
+                        ` : ''}
+                        
+                        ${scoring.evaluated_at ? `
+                            <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.75rem; text-align: right;">
+                                Evaluated: ${new Date(scoring.evaluated_at).toLocaleDateString()}
+                            </p>
+                        ` : ''}
                     </div>
-                </div>
-            </div>
-            <div class="detail-section">
-                <h4>Observation Notes</h4>
-                <p>${p.notes || 'No notes.'}</p>
-            </div>
-            <div class="detail-section">
-                <h4>Added</h4>
-                <p>${new Date(p.created_at || Date.now()).toLocaleDateString()}</p>
-            </div>
-        `;
-    }
+                `;
+            } else {
+                panel.innerHTML = `
+                    <div class="detail-section">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div>
+                                <h2 style="margin-bottom: 0.5rem;">${p.anonId}</h2>
+                                <p style="color: var(--text-muted);">
+                                    Age Group: ${p.ageGroup} • ${p.gender}
+                                </p>
+                            </div>
+                            <div style="text-align: right;">
+                                <span class="badge badge-${(p.riskLevel || 'low').toLowerCase()}">${p.riskLevel || 'Low'}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <h4>Observation Notes</h4>
+                        <p>${p.notes || 'No notes.'}</p>
+                    </div>
+                    <div class="detail-section">
+                        <h4>Added</h4>
+                        <p>${new Date(p.created_at || Date.now()).toLocaleDateString()}</p>
+                    </div>
+                `;
+            }
+            
+            lucide.createIcons();
+        })
+        .catch(err => {
+            console.error('Error fetching patient details:', err);
+            // Fallback to basic display
+            if (window.currentMode === 'identity') {
+                panel.innerHTML = `
+                    <div class="detail-section">
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div>
+                                <h2 style="margin-bottom: 0.5rem;">${p.name}</h2>
+                                <p style="color: var(--text-muted);">
+                                    ID: ${p.patientId} • ${p.age} yrs • ${p.gender}
+                                    ${p.phone ? `<br>Phone: ${p.phone}` : ''}
+                                </p>
+                            </div>
+                            <div style="text-align: right;">
+                                <span class="badge badge-${(p.riskLevel || 'low').toLowerCase()}">${p.riskLevel || 'Low'} Risk</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-section">
+                        <h4>Medication</h4>
+                        <p><strong>${p.drugName}</strong></p>
+                    </div>
+                    <div class="detail-section">
+                        <h4>Timeline</h4>
+                        <p>Reported: ${new Date(p.created_at || Date.now()).toLocaleDateString()}</p>
+                        <p>${p.symptoms || 'No symptoms.'}</p>
+                    </div>
+                `;
+            }
+            lucide.createIcons();
+        });
 };
 
 window.filterList = function(val) {
@@ -560,6 +699,36 @@ window.handleExcelUpload = async function() {
     } catch (err) {
         console.error(err);
         alert("Upload failed");
+    }
+};
+
+// Send follow-up email to patient
+window.sendFollowupEmail = async function(patientId) {
+    if (!confirm('Send a follow-up questionnaire email to this patient?')) {
+        return;
+    }
+    
+    try {
+        const res = await fetch('/api/followup/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ patient_id: patientId })
+        });
+        
+        const result = await res.json();
+        
+        if (result.success) {
+            alert('✅ Follow-up email sent successfully!');
+            // Refresh patient details
+            window.renderDetail(patientId);
+        } else if (result.setup_required) {
+            alert('⚠️ Email not configured.\n\nTo send emails, set these environment variables:\n- GMAIL_ADDRESS\n- GMAIL_APP_PASSWORD\n\nSee the setup guide in pv_backend/services/followup_agent.py');
+        } else {
+            alert('❌ Error: ' + (result.error || result.message || 'Failed to send email'));
+        }
+    } catch (err) {
+        console.error('Error sending follow-up email:', err);
+        alert('Failed to send follow-up email. Please try again.');
     }
 };
 

@@ -44,8 +44,33 @@ async function submitReportToDatabase(reportType, patientId = null) {
     const drugName = document.querySelector('input[placeholder="e.g., Aspirin, Metformin"]').value;
     const sideEffect = document.querySelector('textarea[placeholder="Describe what you observed..."]').value;
     const severity = document.getElementById('severitySelect')?.value || 'Medium';
+    const dosage = document.querySelector('input[placeholder="e.g., 500mg"]')?.value || '';
+    const onsetDate = document.querySelector('input[type="date"]')?.value || null;
+    const outcome = document.querySelector('select[required]:last-of-type')?.value || 'unknown';
     
-    console.log('Submitting report:', { drugName, sideEffect, severity, reportType, patientId });
+    // Get patient details for patient-linked reports
+    let patientName = null;
+    let patientAge = null;
+    let patientGender = null;
+    let patientPhone = null;
+    let patientEmail = null;
+    
+    if (reportType === 'patient-linked') {
+        const manualMode = document.getElementById('manualPatientMode');
+        const existingMode = document.getElementById('existingPatientMode');
+        
+        // Check if manual mode is active (NOT hidden)
+        if (manualMode && !manualMode.classList.contains('hidden-section')) {
+            // Manual entry mode - get from form fields
+            patientName = document.getElementById('manualPatientName')?.value || null;
+            patientAge = document.getElementById('manualPatientAge')?.value || null;
+            patientGender = document.getElementById('manualPatientGender')?.value || null;
+            patientPhone = document.getElementById('manualPatientPhone')?.value || null;
+            patientEmail = document.getElementById('manualPatientEmail')?.value || null;
+        }
+    }
+    
+    console.log('Submitting report:', { drugName, sideEffect, severity, reportType, patientId, patientName, patientAge, patientGender, patientPhone, patientEmail });
     
     try {
         const response = await fetch('/api/report-side-effect', {
@@ -58,7 +83,16 @@ async function submitReportToDatabase(reportType, patientId = null) {
                 side_effect: sideEffect,
                 severity: severity,
                 patient_id: patientId,
-                report_type: reportType
+                report_type: reportType,
+                dosage: dosage,
+                onset_date: onsetDate,
+                outcome: outcome,
+                // Patient details for new patient creation
+                patient_name: patientName,
+                patient_age: patientAge,
+                patient_gender: patientGender,
+                patient_phone: patientPhone,
+                patient_email: patientEmail
             })
         });
         
@@ -66,6 +100,17 @@ async function submitReportToDatabase(reportType, patientId = null) {
         
         if (data.success) {
             console.log('Report submitted successfully:', data);
+            
+            // Show case matching info if available
+            if (data.case_matching) {
+                console.log('Case matching result:', data.case_matching);
+                if (data.case_matching.action === 'LINKED') {
+                    console.log(`Case linked to existing patient: ${data.case_matching.linked_to}`);
+                } else if (data.case_matching.action === 'NEW') {
+                    console.log(`New patient record created: ${data.patient_id}`);
+                }
+            }
+            
             // Reload submission history
             await loadSubmissionHistory();
             return true;

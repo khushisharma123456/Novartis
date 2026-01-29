@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Follow-up Questionnaire</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 700px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+        }
+        
+        .header p {
+            opacity: 0.8;
+            font-size: 0.95rem;
+        }
+        
+        .patient-info {
+            background: #f0f7ff;
+            padding: 20px 30px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .patient-info h3 {
+            color: #1e40af;
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-item {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            border-left: 3px solid #3b82f6;
+        }
+        
+        .info-item label {
+            font-size: 0.75rem;
+            color: #6b7280;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .info-item p {
+            color: #1f2937;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+        
+        .form-content {
+            padding: 30px;
+        }
+        
+        .form-intro {
+            background: #fef3c7;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+            border-left: 4px solid #f59e0b;
+        }
+        
+        .form-intro p {
+            color: #92400e;
+            font-size: 0.9rem;
+        }
+        
+        .question-group {
+            margin-bottom: 25px;
+        }
+        
+        .question-group label {
+            display: block;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 8px;
+            font-size: 0.95rem;
+        }
+        
+        .question-group label .required {
+            color: #dc2626;
+            margin-left: 4px;
+        }
+        
+        .question-group label .optional {
+            color: #6b7280;
+            font-weight: normal;
+            font-size: 0.85rem;
+        }
+        
+        input[type="text"],
+        input[type="date"],
+        input[type="email"],
+        input[type="tel"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: inherit;
+        }
+        
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+        
+        select {
+            cursor: pointer;
+            background: white;
+        }
+        
+        .submit-section {
+            padding: 20px 30px 30px;
+            background: #f9fafb;
+            border-top: 1px solid #e5e7eb;
+            text-align: center;
+        }
+        
+        .submit-btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+            color: white;
+            border: none;
+            padding: 14px 40px;
+            font-size: 1rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
+        }
+        
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .privacy-note {
+            margin-top: 15px;
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+        
+        .privacy-note i {
+            margin-right: 4px;
+        }
+        
+        /* Success message styles */
+        .success-message {
+            display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: #10b981;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+        }
+        
+        .success-icon svg {
+            width: 40px;
+            height: 40px;
+            color: white;
+        }
+        
+        .success-message h2 {
+            color: #065f46;
+            margin-bottom: 10px;
+        }
+        
+        .success-message p {
+            color: #6b7280;
+        }
+        
+        .score-improvement {
+            background: #ecfdf5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .score-improvement h4 {
+            color: #065f46;
+            margin-bottom: 10px;
+        }
+        
+        /* Loading state */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #fff;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .header { padding: 20px; }
+            .header h1 { font-size: 1.4rem; }
+            .form-content { padding: 20px; }
+            .submit-section { padding: 15px 20px 20px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <h1>📋 Follow-up Questionnaire</h1>
+                <p>Pharmacovigilance Safety Monitoring</p>
+            </div>
+            
+            <div class="patient-info">
+                <h3>Your Report Information</h3>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <label>Patient ID</label>
+                        <p>{{ patient.id }}</p>
+                    </div>
+                    <div class="info-item">
+                        <label>Medication</label>
+                        <p>{{ patient.drug_name }}</p>
+                    </div>
+                    <div class="info-item">
+                        <label>Report Date</label>
+                        <p>{{ patient.created_at.strftime('%b %d, %Y') if patient.created_at else 'N/A' }}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <form id="followupForm" class="form-content">
+                <div class="form-intro">
+                    <p>🔒 Your responses help improve medication safety. All information is kept confidential.</p>
+                </div>
+                
+                {% for question in questions %}
+                <div class="question-group">
+                    <label for="{{ question.id }}">
+                        {{ question.label }}
+                        {% if question.required %}
+                        <span class="required">*</span>
+                        {% else %}
+                        <span class="optional">(Optional)</span>
+                        {% endif %}
+                    </label>
+                    
+                    {% if question.type == 'select' %}
+                    <select id="{{ question.id }}" name="{{ question.id }}" {% if question.required %}required{% endif %}>
+                        <option value="">-- Select an option --</option>
+                        {% for option in question.options %}
+                        <option value="{{ option }}">{{ option }}</option>
+                        {% endfor %}
+                    </select>
+                    
+                    {% elif question.type == 'date' %}
+                    <input type="date" id="{{ question.id }}" name="{{ question.id }}" {% if question.required %}required{% endif %}>
+                    
+                    {% elif question.type == 'textarea' %}
+                    <textarea id="{{ question.id }}" name="{{ question.id }}" placeholder="{{ question.placeholder or '' }}" {% if question.required %}required{% endif %}></textarea>
+                    
+                    {% else %}
+                    <input type="text" id="{{ question.id }}" name="{{ question.id }}" placeholder="{{ question.placeholder or '' }}" {% if question.required %}required{% endif %}>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </form>
+            
+            <div class="submit-section">
+                <button type="submit" class="submit-btn" id="submitBtn" onclick="submitForm()">
+                    Submit Response
+                </button>
+                <p class="privacy-note">
+                    🔐 Your information is encrypted and handled according to healthcare privacy regulations.
+                </p>
+            </div>
+            
+            <!-- Success Message (hidden by default) -->
+            <div class="success-message" id="successMessage">
+                <div class="success-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                </div>
+                <h2>Thank You!</h2>
+                <p>Your follow-up response has been recorded successfully.</p>
+                <div class="score-improvement" id="scoreImprovement">
+                    <h4>📊 Case Update</h4>
+                    <p id="scoreDetails">Your response has helped improve the case data quality.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const patientId = "{{ patient.id }}";
+        const token = "{{ token }}";
+        
+        async function submitForm() {
+            const form = document.getElementById('followupForm');
+            const submitBtn = document.getElementById('submitBtn');
+            
+            // Validate required fields
+            const requiredFields = form.querySelectorAll('[required]');
+            let isValid = true;
+            
+            requiredFields.forEach(field => {
+                if (!field.value) {
+                    field.style.borderColor = '#dc2626';
+                    isValid = false;
+                } else {
+                    field.style.borderColor = '#e5e7eb';
+                }
+            });
+            
+            if (!isValid) {
+                alert('Please fill in all required fields.');
+                return;
+            }
+            
+            // Collect form data
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => {
+                data[key] = value;
+            });
+            
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="loading"></span> Submitting...';
+            
+            try {
+                const response = await fetch(`/api/followup/submit/${patientId}/${token}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Hide form, show success
+                    form.style.display = 'none';
+                    document.querySelector('.submit-section').style.display = 'none';
+                    document.querySelector('.form-intro')?.remove();
+                    
+                    const successMsg = document.getElementById('successMessage');
+                    successMsg.style.display = 'block';
+                    
+                    // Show score improvement if available
+                    if (result.scoring) {
+                        const scoreDetails = document.getElementById('scoreDetails');
+                        let details = [];
+                        
+                        if (result.scoring.score_change > 0) {
+                            details.push(`Case score improved by +${result.scoring.score_change}`);
+                        }
+                        
+                        details.push(`Completeness: ${result.scoring.completeness_score}%`);
+                        details.push(`Strength Level: ${result.scoring.strength_level}`);
+                        
+                        scoreDetails.innerHTML = details.join(' • ');
+                    }
+                } else {
+                    alert('Error: ' + (result.message || 'Failed to submit response'));
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = 'Submit Response';
+                }
+            } catch (error) {
+                console.error('Submission error:', error);
+                alert('An error occurred. Please try again.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = 'Submit Response';
+            }
+        }
+    </script>
+</body>
+</html>
