@@ -40,8 +40,7 @@ export class Sidebar extends HTMLElement {
 
         const pharmacyItems = [
             { icon: 'home', text: 'Dashboard', link: '/pharmacy/dashboard' },
-            { icon: 'file-plus-2', text: 'Submit Report', link: '/pharmacy/reports' },
-            { icon: 'clipboard-list', text: 'My Reports', link: '/pharmacy/history' },
+            { icon: 'file-text', text: 'Reports', link: '/pharmacy/reports' },
             { icon: 'alert-triangle', text: 'Alerts', link: '/pharmacy/alerts' },
         ];
 
