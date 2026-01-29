@@ -2877,8 +2877,78 @@ def report_side_effect():
 
 
 # ========================================================================
-# AUTOMATIC DATABASE POPULATION
+# AUTOMATIC DATABASE MIGRATION & POPULATION
 # ========================================================================
+
+def migrate_database():
+    """
+    Automatically add missing columns to database tables.
+    This ensures the database schema matches the models without manual steps.
+    """
+    import sqlite3
+    db_path = os.path.join(app.instance_path, 'inteleyzer.db')
+    
+    if not os.path.exists(db_path):
+        return  # Database doesn't exist yet, will be created by db.create_all()
+    
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    
+    # Get existing columns for alert table
+    cursor.execute('PRAGMA table_info(alert)')
+    alert_cols = [col[1] for col in cursor.fetchall()]
+    
+    # Add missing columns to alert table
+    alert_columns_to_add = [
+        ('status', 'VARCHAR(20)', "'new'"),
+        ('acknowledged_at', 'DATETIME', None),
+        ('acknowledged_by', 'INTEGER', None)
+    ]
+    
+    for col_name, col_type, default in alert_columns_to_add:
+        if col_name not in alert_cols:
+            try:
+                if default:
+                    sql = f'ALTER TABLE alert ADD COLUMN {col_name} {col_type} DEFAULT {default}'
+                else:
+                    sql = f'ALTER TABLE alert ADD COLUMN {col_name} {col_type}'
+                cursor.execute(sql)
+                print(f'✓ Migration: Added {col_name} to alert table')
+            except Exception as e:
+                pass  # Column might already exist
+    
+    # Get existing columns for patient table
+    cursor.execute('PRAGMA table_info(patient)')
+    patient_cols = [col[1] for col in cursor.fetchall()]
+    
+    # Check if patient has all required columns
+    patient_columns_to_add = [
+        ('email', 'VARCHAR(120)', None),
+        ('followup_sent_date', 'DATETIME', None),
+        ('followup_pending', 'BOOLEAN', '0'),
+        ('followup_completed', 'BOOLEAN', '0'),
+        ('followup_response_date', 'DATETIME', None),
+        ('followup_responded', 'BOOLEAN', '0')
+    ]
+    
+    for col_name, col_type, default in patient_columns_to_add:
+        if col_name not in patient_cols:
+            try:
+                if default:
+                    sql = f'ALTER TABLE patient ADD COLUMN {col_name} {col_type} DEFAULT {default}'
+                else:
+                    sql = f'ALTER TABLE patient ADD COLUMN {col_name} {col_type}'
+                cursor.execute(sql)
+                print(f'✓ Migration: Added {col_name} to patient table')
+            except Exception as e:
+                pass  # Column might already exist
+    
+    conn.commit()
+    conn.close()
+
+# Run migration before anything else
+migrate_database()
+
 # Automatically populate database on first run or if empty
 if os.environ.get('SKIP_AUTO_POPULATE') != '1':
     with app.app_context():
