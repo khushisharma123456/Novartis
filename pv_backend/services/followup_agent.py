@@ -1,8 +1,8 @@
 """
 Follow-up Agent Service
 =======================
-Sends follow-up questionnaire emails to patients and processes their responses
-to update case data and improve case scoring.
+Sends follow-up questionnaire emails and WhatsApp messages to patients 
+and processes their responses to update case data and improve case scoring.
 
 Setup Gmail:
 1. Enable 2-Factor Authentication on your Google Account
@@ -11,6 +11,14 @@ Setup Gmail:
 4. Set environment variables:
    - GMAIL_ADDRESS=your-email@gmail.com
    - GMAIL_APP_PASSWORD=your-16-char-app-password
+
+Setup Twilio WhatsApp:
+1. Create a Twilio account at https://www.twilio.com
+2. Set up WhatsApp Sandbox or approved WhatsApp Business API
+3. Set environment variables:
+   - TWILIO_ACCOUNT_SID=your-account-sid
+   - TWILIO_AUTH_TOKEN=your-auth-token
+   - TWILIO_WHATSAPP_FROM=whatsapp:+14155238886  (your Twilio WhatsApp number)
    
 Or update the config in this file directly (not recommended for production).
 """
@@ -28,31 +36,75 @@ GMAIL_CONFIG = {
     'smtp_server': 'smtp.gmail.com',
     'smtp_port': 587,
     'email': os.environ.get('GMAIL_ADDRESS', 'suhanig2258@gmail.com'),
-    'password': os.environ.get('GMAIL_APP_PASSWORD', 'wlfordyjcjcfhija'),
+    'password': os.environ.get('GMAIL_APP_PASSWORD', 'aeiv yfem vtzu bczt'),
+}
+
+# Twilio WhatsApp Configuration - Set these via environment variables
+TWILIO_CONFIG = {
+    'account_sid': os.environ.get('TWILIO_ACCOUNT_SID', 'AC767ece26bfea8e5b3cf34bf6a0dc6a3b'),
+    'auth_token': os.environ.get('TWILIO_AUTH_TOKEN', '1ceeb28931d5cd72036092d481464b79'),
+    'whatsapp_from': os.environ.get('TWILIO_WHATSAPP_FROM', 'whatsapp:+14155238886'),
 }
 
 # Base URL for the application (update this for your deployment)
-APP_BASE_URL = os.environ.get('APP_BASE_URL', 'http://127.0.0.1:5000')
+# Using ngrok for public access - update when ngrok restarts
+APP_BASE_URL = os.environ.get('APP_BASE_URL', 'https://embryotrophic-rutha-inconvertibly.ngrok-free.app')
 
 
 class FollowupAgent:
     """
     Agent responsible for sending follow-up questionnaires to patients
-    and processing their responses to update case data.
+    via email and WhatsApp, and processing their responses to update case data.
     """
     
     def __init__(self, db_session=None):
         self.db = db_session
         self.email_config = GMAIL_CONFIG
+        self.twilio_config = TWILIO_CONFIG
+        self.twilio_client = None
+        
+        # Initialize Twilio client if credentials are available
+        if self.is_whatsapp_configured():
+            try:
+                from twilio.rest import Client
+                self.twilio_client = Client(
+                    self.twilio_config['account_sid'],
+                    self.twilio_config['auth_token']
+                )
+            except ImportError:
+                print("⚠️ Twilio library not installed. Run: pip install twilio")
+            except Exception as e:
+                print(f"⚠️ Failed to initialize Twilio client: {e}")
         
     def configure_email(self, email: str, password: str):
         """Configure email credentials programmatically"""
         self.email_config['email'] = email
         self.email_config['password'] = password
+    
+    def configure_whatsapp(self, account_sid: str, auth_token: str, whatsapp_from: str):
+        """Configure Twilio WhatsApp credentials programmatically"""
+        self.twilio_config['account_sid'] = account_sid
+        self.twilio_config['auth_token'] = auth_token
+        self.twilio_config['whatsapp_from'] = whatsapp_from
+        
+        # Re-initialize client with new credentials
+        try:
+            from twilio.rest import Client
+            self.twilio_client = Client(account_sid, auth_token)
+        except Exception as e:
+            print(f"⚠️ Failed to initialize Twilio client: {e}")
         
     def is_email_configured(self) -> bool:
         """Check if email credentials are properly configured"""
         return bool(self.email_config['email'] and self.email_config['password'])
+    
+    def is_whatsapp_configured(self) -> bool:
+        """Check if WhatsApp/Twilio credentials are properly configured"""
+        return bool(
+            self.twilio_config.get('account_sid') and 
+            self.twilio_config.get('auth_token') and
+            self.twilio_config.get('whatsapp_from')
+        )
     
     def generate_followup_token(self, patient_id: str) -> str:
         """Generate a secure token for the follow-up form link"""
@@ -307,6 +359,162 @@ If you did not submit a report or have questions, please contact your healthcare
                 'success': False,
                 'error': f'Failed to send email: {str(e)}'
             }
+    
+    def create_whatsapp_message(self, patient, followup_token: str) -> str:
+        """Generate the WhatsApp message content with the follow-up form link"""
+        form_url = f"{APP_BASE_URL}/followup/{patient.id}/{followup_token}"
+        
+        message = f"""📋 *Follow-up Request*
+_Pharmacovigilance Safety Monitoring_
+
+Dear *{patient.name}*,
+
+We would like to follow up on your adverse event report regarding *{patient.drug_name}*.
+
+📅 *Report Date:* {patient.created_at.strftime('%B %d, %Y') if patient.created_at else 'N/A'}
+💊 *Medication:* {patient.drug_name}
+📝 *Symptoms:* {patient.symptoms or 'Not specified'}
+
+Please take a few minutes to complete our follow-up questionnaire:
+👉 {form_url}
+
+⏰ This link expires in 7 days.
+🔒 Your information is kept confidential.
+
+Reply *HELP* if you have questions or *STOP* to opt out.
+
+_This is an automated message from the Pharmacovigilance Safety System._"""
+        
+        return message
+    
+    def send_followup_whatsapp(self, patient, followup_token: str = None) -> Dict[str, Any]:
+        """
+        Send a follow-up questionnaire via WhatsApp to the patient.
+        
+        Args:
+            patient: Patient model object with phone number
+            followup_token: Optional pre-generated token, will generate if not provided
+            
+        Returns:
+            Dict with success status and details
+        """
+        # Validate WhatsApp configuration
+        if not self.is_whatsapp_configured():
+            return {
+                'success': False,
+                'error': 'WhatsApp not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM environment variables.',
+                'setup_required': True
+            }
+        
+        # Validate patient has phone number
+        if not patient.phone:
+            return {
+                'success': False,
+                'error': f'Patient {patient.id} does not have a phone number on file.',
+                'patient_id': patient.id
+            }
+        
+        # Ensure Twilio client is initialized
+        if not self.twilio_client:
+            return {
+                'success': False,
+                'error': 'Twilio client not initialized. Check your credentials.',
+                'setup_required': True
+            }
+        
+        # Generate token if not provided
+        if not followup_token:
+            followup_token = self.generate_followup_token(patient.id)
+        
+        try:
+            # Format phone number for WhatsApp (needs to be in international format)
+            phone = patient.phone.strip()
+            if not phone.startswith('+'):
+                # Assume Indian number if no country code
+                if phone.startswith('0'):
+                    phone = '+91' + phone[1:]
+                elif len(phone) == 10:
+                    phone = '+91' + phone
+                else:
+                    phone = '+' + phone
+            
+            # Create WhatsApp message
+            message_body = self.create_whatsapp_message(patient, followup_token)
+            
+            # Send via Twilio
+            message = self.twilio_client.messages.create(
+                from_=self.twilio_config['whatsapp_from'],
+                body=message_body,
+                to=f'whatsapp:{phone}'
+            )
+            
+            return {
+                'success': True,
+                'message': f'Follow-up WhatsApp sent successfully to {phone}',
+                'patient_id': patient.id,
+                'phone': phone,
+                'message_sid': message.sid,
+                'token': followup_token,
+                'sent_at': datetime.utcnow().isoformat(),
+                'expires_at': (datetime.utcnow() + timedelta(days=7)).isoformat()
+            }
+            
+        except Exception as e:
+            error_message = str(e)
+            if 'unverified' in error_message.lower():
+                return {
+                    'success': False,
+                    'error': f'WhatsApp number not verified. In Twilio Sandbox mode, the recipient must first message your Twilio number.',
+                    'help': 'Ask the patient to send "join <sandbox-keyword>" to your Twilio WhatsApp number first.',
+                    'phone': patient.phone
+                }
+            return {
+                'success': False,
+                'error': f'Failed to send WhatsApp: {error_message}',
+                'phone': patient.phone
+            }
+    
+    def send_followup_all_channels(self, patient, followup_token: str = None) -> Dict[str, Any]:
+        """
+        Send follow-up via all available channels (email and WhatsApp).
+        
+        Args:
+            patient: Patient model object
+            followup_token: Optional pre-generated token
+            
+        Returns:
+            Dict with results from each channel
+        """
+        if not followup_token:
+            followup_token = self.generate_followup_token(patient.id)
+        
+        results = {
+            'patient_id': patient.id,
+            'token': followup_token,
+            'email': None,
+            'whatsapp': None,
+            'channels_sent': 0
+        }
+        
+        # Try email if patient has email
+        if patient.email:
+            results['email'] = self.send_followup_email(patient, followup_token)
+            if results['email'].get('success'):
+                results['channels_sent'] += 1
+        else:
+            results['email'] = {'success': False, 'reason': 'no_email'}
+        
+        # Try WhatsApp if patient has phone
+        if patient.phone:
+            results['whatsapp'] = self.send_followup_whatsapp(patient, followup_token)
+            if results['whatsapp'].get('success'):
+                results['channels_sent'] += 1
+        else:
+            results['whatsapp'] = {'success': False, 'reason': 'no_phone'}
+        
+        results['success'] = results['channels_sent'] > 0
+        
+        return results
     
     def process_followup_response(self, patient, response_data: Dict[str, Any]) -> Dict[str, Any]:
         """

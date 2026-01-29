@@ -11,13 +11,269 @@ from models import db, User, Patient, Drug, Alert, CaseAgent, FollowUp, SideEffe
 from pv_backend.services.case_matching import match_new_case, should_accept_case
 from pv_backend.services.case_scoring import CaseScoringEngine, evaluate_case, score_case, check_followup
 from pv_backend.services.quality_agent import QualityAgentOrchestrator, FollowUpManager
-from pv_backend.routes.followup_routes import init_followup_routes
+from pv_backend.routes.followup_routes import init_followup_routes, store_followup_token
+from pv_backend.services.followup_agent import FollowupAgent
 from auth_config import JWTConfig, token_required, session_required, SESSION_TIMEOUT_MINUTES, TOKEN_EXPIRY_HOURS
 import os
 import random
 from datetime import datetime, timedelta
 
 app = Flask(__name__)
+
+
+def auto_send_followup(patient):
+    """
+    Automatically send follow-up via all available channels (email and WhatsApp)
+    to patient immediately after creation.
+    
+    Args:
+        patient: Patient model instance with email and/or phone field
+        
+    Returns:
+        dict: Result containing success status and details for each channel
+    """
+    if not patient:
+        return {'success': False, 'reason': 'no_patient', 'message': 'No patient provided'}
+    
+    # Check if patient has any contact method
+    has_email = bool(patient.email)
+    has_phone = bool(patient.phone)
+    
+    if not has_email and not has_phone:
+        return {
+            'success': False,
+            'reason': 'no_contact',
+            'message': 'Patient has no email address or phone number'
+        }
+    
+    try:
+        # Create follow-up agent
+        agent = FollowupAgent()
+        
+        # Generate and store token (single token for all channels)
+        token = agent.generate_followup_token(patient.id)
+        store_followup_token(patient.id, token)
+        
+        results = {
+            'success': False,
+            'patient_id': patient.id,
+            'email': None,
+            'whatsapp': None,
+            'channels_sent': 0
+        }
+        
+        # Send via email if available
+        if has_email:
+            email_result = agent.send_followup_email(patient, token)
+            results['email'] = {
+                'sent': email_result.get('success', False),
+                'address': patient.email,
+                'error': email_result.get('error') if not email_result.get('success') else None
+            }
+            if email_result.get('success'):
+                results['channels_sent'] += 1
+                print(f"✅ Auto-sent follow-up email to {patient.email} for patient {patient.id}")
+        
+        # Send via WhatsApp if available
+        if has_phone:
+            whatsapp_result = agent.send_followup_whatsapp(patient, token)
+            results['whatsapp'] = {
+                'sent': whatsapp_result.get('success', False),
+                'phone': patient.phone,
+                'error': whatsapp_result.get('error') if not whatsapp_result.get('success') else None
+            }
+            if whatsapp_result.get('success'):
+                results['channels_sent'] += 1
+                print(f"✅ Auto-sent follow-up WhatsApp to {patient.phone} for patient {patient.id}")
+        
+        # Update patient record if at least one channel succeeded
+        if results['channels_sent'] > 0:
+            patient.followup_sent_date = datetime.utcnow()
+            patient.followup_pending = True
+            patient.follow_up_sent = True
+            db.session.commit()
+            results['success'] = True
+            results['message'] = f"Follow-up sent via {results['channels_sent']} channel(s)"
+        else:
+            results['message'] = "Failed to send follow-up via any channel"
+        
+        return results
+            
+    except Exception as e:
+        print(f"❌ Exception sending follow-up: {str(e)}")
+        return {
+            'success': False,
+            'reason': 'exception',
+            'message': str(e),
+            'patient_id': patient.id if patient else None
+        }
+
+
+def auto_send_followup_email(patient):
+    """
+    Automatically send follow-up email to patient immediately after creation.
+    Only sends if patient has a valid email address.
+    
+    DEPRECATED: Use auto_send_followup() for multi-channel support.
+    
+    Args:
+        patient: Patient model instance with email field
+        
+    Returns:
+        dict: Result containing success status and details
+    """
+    # Use the new multi-channel function
+    result = auto_send_followup(patient)
+    
+    # Return in old format for backward compatibility
+    if result.get('email', {}).get('sent'):
+        return {
+            'success': True,
+            'message': f"Follow-up email sent to {patient.email}",
+            'email': patient.email,
+            'patient_id': patient.id
+        }
+    elif result.get('whatsapp', {}).get('sent'):
+        # If email failed but WhatsApp succeeded, still return success
+        return {
+            'success': True,
+            'message': f"Follow-up sent via WhatsApp to {patient.phone}",
+            'phone': patient.phone,
+            'patient_id': patient.id
+        }
+    else:
+        return {
+            'success': result.get('success', False),
+            'reason': result.get('reason', 'send_failed'),
+            'message': result.get('message', 'Failed to send follow-up'),
+            'email': patient.email if patient and patient.email else None
+        }
+
+
+def check_duplicate_patient(name, drug_name, age, gender, symptoms=None, phone=None, email=None):
+    """
+    Check for duplicate patient entries before adding to database.
+    Uses case matching to detect potential duplicates for same patient + same drug.
+    
+    Args:
+        name: Patient name
+        drug_name: Medication/drug name
+        age: Patient age
+        gender: Patient gender
+        symptoms: Patient symptoms (optional)
+        phone: Patient phone (optional)
+        email: Patient email (optional)
+        
+    Returns:
+        dict: {
+            'is_duplicate': bool,
+            'action': 'ACCEPT' | 'LINK' | 'REJECT',
+            'existing_case': Patient object if duplicate found,
+            'match_score': float,
+            'reason': str
+        }
+    """
+    from pv_backend.services.case_matching import CaseMatchingEngine
+    
+    # Prepare the new case data
+    new_case = {
+        'name': name,
+        'drug_name': drug_name or 'Not Specified',
+        'age': age,
+        'gender': gender,
+        'symptoms': symptoms or '',
+        'phone': phone,
+        'email': email
+    }
+    
+    # Find existing patients with similar characteristics
+    # First, check for exact same drug + similar demographics
+    existing_patients = Patient.query.filter(
+        Patient.drug_name.ilike(f"%{drug_name}%") if drug_name else True
+    ).all()
+    
+    if not existing_patients:
+        return {
+            'is_duplicate': False,
+            'action': 'ACCEPT',
+            'existing_case': None,
+            'match_score': 0,
+            'reason': 'No existing patients with this drug'
+        }
+    
+    # Use Case Matching Engine with high threshold for duplicates
+    engine = CaseMatchingEngine(threshold=0.85)
+    
+    best_match = None
+    best_score = 0
+    
+    for existing in existing_patients:
+        # Skip if different drug (case insensitive)
+        if drug_name and existing.drug_name:
+            if drug_name.lower().strip() != existing.drug_name.lower().strip():
+                continue
+        
+        result = engine.calculate_case_similarity(new_case, existing)
+        
+        # Check for exact duplicate (same name + same drug + similar age/gender)
+        name_match = False
+        if name and existing.name:
+            name_similarity = engine.calculate_text_similarity(name, existing.name)
+            name_match = name_similarity >= 0.9
+        
+        # Check phone/email match for identity confirmation
+        identity_match = False
+        if phone and existing.phone and phone == existing.phone:
+            identity_match = True
+        if email and existing.email and email.lower() == existing.email.lower():
+            identity_match = True
+        
+        # Calculate combined score
+        combined_score = result['similarity_score']
+        if name_match:
+            combined_score = min(1.0, combined_score + 0.2)
+        if identity_match:
+            combined_score = min(1.0, combined_score + 0.3)
+        
+        if combined_score > best_score:
+            best_score = combined_score
+            best_match = {
+                'patient': existing,
+                'score': combined_score,
+                'name_match': name_match,
+                'identity_match': identity_match,
+                'breakdown': result['breakdown']
+            }
+    
+    if best_match and best_score >= 0.95:
+        # Very high match - likely exact duplicate (reject)
+        return {
+            'is_duplicate': True,
+            'action': 'REJECT',
+            'existing_case': best_match['patient'],
+            'match_score': best_score,
+            'reason': f"Exact duplicate detected - Patient '{best_match['patient'].name}' with same drug '{best_match['patient'].drug_name}' already exists (ID: {best_match['patient'].id})"
+        }
+    elif best_match and best_score >= 0.85:
+        # High match - should be case-linked
+        return {
+            'is_duplicate': True,
+            'action': 'LINK',
+            'existing_case': best_match['patient'],
+            'match_score': best_score,
+            'reason': f"Similar case found - Will link to existing case {best_match['patient'].id} (Match: {best_score:.1%})"
+        }
+    else:
+        # No significant match - accept as new
+        return {
+            'is_duplicate': False,
+            'action': 'ACCEPT',
+            'existing_case': best_match['patient'] if best_match else None,
+            'match_score': best_score,
+            'reason': 'No duplicate detected - accepting as new case'
+        }
+
+
 app.config['SECRET_KEY'] = 'inteleyzer-secret-key-dev'
 
 # Template configuration
@@ -274,37 +530,101 @@ def create_patient():
         data = request.get_json()
         mode = data.get('mode', 'identity')
         
-        # Create patient based on mode
+        # Extract patient data based on mode
         if mode == 'identity':
-            patient = Patient(
-                id=data.get('patientId'),
-                name=data.get('name'),
-                phone=data.get('contactDetails'),
-                age=int(data.get('age')),
-                gender=data.get('gender'),
-                drug_name=data.get('medication') or 'Not Specified',
-                symptoms=data.get('symptoms', ''),
-                risk_level=data.get('riskLevel', 'Low'),
-                case_status='Active',
-                created_by=session['user_id']
-            )
+            name = data.get('name')
+            phone = data.get('contactDetails')
+            email = data.get('email')
+            age = int(data.get('age'))
+            gender = data.get('gender')
+            drug_name = data.get('medication') or 'Not Specified'
+            symptoms = data.get('symptoms', '')
+            risk_level = data.get('riskLevel', 'Low')
         else:  # anonymized mode
-            # Parse age group to get middle value
+            name = 'Anonymized Patient'
+            phone = None
+            email = None
             age_group = data.get('ageGroup', '31-45')
             if '-' in age_group:
                 age_parts = age_group.split('-')
                 age = (int(age_parts[0]) + int(age_parts[1])) // 2
             else:
                 age = 35
+            gender = data.get('gender')
+            drug_name = 'Not Specified'
+            symptoms = data.get('notes', '')
+            risk_level = data.get('riskCategory', 'Low')
+        
+        # === DUPLICATE CHECK ===
+        duplicate_check = check_duplicate_patient(
+            name=name,
+            drug_name=drug_name,
+            age=age,
+            gender=gender,
+            symptoms=symptoms,
+            phone=phone,
+            email=email
+        )
+        
+        if duplicate_check['action'] == 'REJECT':
+            # Exact duplicate - reject the entry
+            existing = duplicate_check['existing_case']
+            return jsonify({
+                'success': False,
+                'duplicate': True,
+                'message': duplicate_check['reason'],
+                'existing_patient': {
+                    'id': existing.id,
+                    'name': existing.name,
+                    'drug_name': existing.drug_name,
+                    'created_at': existing.created_at.isoformat() if existing.created_at else None
+                },
+                'match_score': duplicate_check['match_score']
+            }), 409  # Conflict status code
+        
+        elif duplicate_check['action'] == 'LINK':
+            # Similar case found - create new entry but link to existing case
+            existing = duplicate_check['existing_case']
+            patient_id = data.get('patientId') if mode == 'identity' else data.get('anonId')
+            if not patient_id:
+                patient_id = f"PT-{random.randint(10000, 99999)}"
+                while Patient.query.get(patient_id):
+                    patient_id = f"PT-{random.randint(10000, 99999)}"
             
             patient = Patient(
-                id=data.get('anonId'),
-                name='Anonymized Patient',
+                id=patient_id,
+                name=name,
+                phone=phone,
+                email=email,
                 age=age,
-                gender=data.get('gender'),
-                drug_name='Not Specified',
-                symptoms=data.get('notes', ''),
-                risk_level=data.get('riskCategory', 'Low'),
+                gender=gender,
+                drug_name=drug_name,
+                symptoms=symptoms,
+                risk_level=risk_level,
+                case_status='Linked',
+                linked_case_id=existing.id,
+                match_score=duplicate_check['match_score'],
+                match_notes=f"Auto-linked: {duplicate_check['reason']}",
+                created_by=session['user_id']
+            )
+        else:
+            # No duplicate - create new patient
+            patient_id = data.get('patientId') if mode == 'identity' else data.get('anonId')
+            if not patient_id:
+                patient_id = f"PT-{random.randint(10000, 99999)}"
+                while Patient.query.get(patient_id):
+                    patient_id = f"PT-{random.randint(10000, 99999)}"
+            
+            patient = Patient(
+                id=patient_id,
+                name=name,
+                phone=phone,
+                email=email,
+                age=age,
+                gender=gender,
+                drug_name=drug_name,
+                symptoms=symptoms,
+                risk_level=risk_level,
                 case_status='Active',
                 created_by=session['user_id']
             )
@@ -323,19 +643,38 @@ def create_patient():
         
         db.session.commit()
         
-        return jsonify({
+        # Auto-send follow-up email if patient has email
+        followup_result = None
+        if patient.email:
+            followup_result = auto_send_followup_email(patient)
+        
+        response_data = {
             'success': True,
             'patient': {
                 'id': patient.id,
                 'name': patient.name,
+                'email': patient.email,
                 'age': patient.age,
                 'gender': patient.gender,
                 'drug_name': patient.drug_name,
                 'symptoms': patient.symptoms,
                 'risk_level': patient.risk_level,
+                'case_status': patient.case_status,
+                'linked_case_id': patient.linked_case_id,
                 'created_at': patient.created_at.isoformat() if patient.created_at else datetime.utcnow().isoformat()
+            },
+            'duplicate_check': {
+                'action': duplicate_check['action'],
+                'match_score': duplicate_check['match_score'],
+                'reason': duplicate_check['reason']
             }
-        })
+        }
+        
+        # Include follow-up email result if email was sent
+        if followup_result:
+            response_data['followup_email'] = followup_result
+        
+        return jsonify(response_data)
     except Exception as e:
         db.session.rollback()
         print(f"Error creating patient: {str(e)}")
@@ -784,34 +1123,117 @@ def submit_pharmacy_reports():
         records = data.get('records', [])
         
         created_records = []
+        created_patients = []  # Store patients for auto-send followup
+        skipped_duplicates = []  # Track rejected duplicates
+        linked_cases = []  # Track linked cases
+        
         for record in records:
+            # Extract patient data
+            name = 'Anonymous' if report_type == 'anonymous' else record.get('internal_case_id', 'Patient')
+            email = record.get('email')
+            drug_name = record.get('drug_name', 'Unknown')
+            symptoms = record.get('reaction_category', '')
+            gender = record.get('gender', 'not_specified')
+            age = 35  # Default age for pharmacy reports
+            
+            # === DUPLICATE CHECK ===
+            duplicate_check = check_duplicate_patient(
+                name=name,
+                drug_name=drug_name,
+                age=age,
+                gender=gender,
+                symptoms=symptoms,
+                email=email
+            )
+            
+            if duplicate_check['action'] == 'REJECT':
+                # Skip this duplicate entry
+                existing = duplicate_check['existing_case']
+                skipped_duplicates.append({
+                    'name': name,
+                    'drug_name': drug_name,
+                    'reason': duplicate_check['reason'],
+                    'existing_id': existing.id
+                })
+                continue
+            
             # Generate unique patient ID
             patient_id = f"PH-{random.randint(10000, 99999)}"
             while Patient.query.get(patient_id):
                 patient_id = f"PH-{random.randint(10000, 99999)}"
             
-            # Map form fields to Patient model
-            patient = Patient(
-                id=patient_id,
-                created_by=user.id,
-                name='Anonymous' if report_type == 'anonymous' else record.get('internal_case_id', 'Patient'),
-                age=35,  # Default age for pharmacy reports
-                gender=record.get('gender', 'not_specified'),
-                drug_name=record.get('drug_name', 'Unknown'),
-                symptoms=record.get('reaction_category', ''),
-                risk_level=record.get('severity', 'mild').capitalize()
-            )
+            if duplicate_check['action'] == 'LINK':
+                # Create but link to existing case
+                existing = duplicate_check['existing_case']
+                patient = Patient(
+                    id=patient_id,
+                    created_by=user.id,
+                    name=name,
+                    email=email,
+                    age=age,
+                    gender=gender,
+                    drug_name=drug_name,
+                    symptoms=symptoms,
+                    risk_level=record.get('severity', 'mild').capitalize(),
+                    case_status='Linked',
+                    linked_case_id=existing.id,
+                    match_score=duplicate_check['match_score'],
+                    match_notes=f"Auto-linked: {duplicate_check['reason']}"
+                )
+                linked_cases.append({
+                    'new_id': patient_id,
+                    'linked_to': existing.id,
+                    'match_score': duplicate_check['match_score']
+                })
+            else:
+                # Map form fields to Patient model
+                patient = Patient(
+                    id=patient_id,
+                    created_by=user.id,
+                    name=name,
+                    email=email,
+                    age=age,
+                    gender=gender,
+                    drug_name=drug_name,
+                    symptoms=symptoms,
+                    risk_level=record.get('severity', 'mild').capitalize()
+                )
             
             db.session.add(patient)
             created_records.append(patient_id)
+            created_patients.append(patient)
         
         db.session.commit()
         
-        return jsonify({
+        # Auto-send follow-up emails to all patients with emails
+        followup_results = []
+        for patient in created_patients:
+            if patient.email:
+                result = auto_send_followup_email(patient)
+                followup_results.append({
+                    'patient_id': patient.id,
+                    'email': patient.email,
+                    'success': result.get('success', False)
+                })
+        
+        response_data = {
             'success': True,
             'message': f'{len(created_records)} record(s) submitted successfully',
             'record_ids': created_records
-        })
+        }
+        
+        if skipped_duplicates:
+            response_data['skipped_duplicates'] = skipped_duplicates
+            response_data['message'] += f', {len(skipped_duplicates)} duplicate(s) skipped'
+        
+        if linked_cases:
+            response_data['linked_cases'] = linked_cases
+            response_data['message'] += f', {len(linked_cases)} case(s) linked to existing'
+        
+        if followup_results:
+            response_data['followup_emails'] = followup_results
+        
+        return jsonify(response_data)
     except Exception as e:
         db.session.rollback()
         print(f"Error submitting pharmacy reports: {str(e)}")
@@ -910,27 +1332,104 @@ def submit_pharmacy_report():
     
     data = request.json
     
+    # Extract patient data
+    name = data['patientName']
+    phone = data.get('phone', '')
+    email = data.get('email')
+    age = data['age']
+    gender = data['gender']
+    drug_name = data['drugName']
+    symptoms = data['reaction']
+    
+    # === DUPLICATE CHECK ===
+    duplicate_check = check_duplicate_patient(
+        name=name,
+        drug_name=drug_name,
+        age=age,
+        gender=gender,
+        symptoms=symptoms,
+        phone=phone,
+        email=email
+    )
+    
+    if duplicate_check['action'] == 'REJECT':
+        # Exact duplicate - reject the entry
+        existing = duplicate_check['existing_case']
+        return jsonify({
+            'success': False,
+            'duplicate': True,
+            'message': duplicate_check['reason'],
+            'existing_patient': {
+                'id': existing.id,
+                'name': existing.name,
+                'drug_name': existing.drug_name,
+                'created_at': existing.created_at.isoformat() if existing.created_at else None
+            },
+            'match_score': duplicate_check['match_score']
+        }), 409
+    
     # Generate pharmacy report ID
     patient_id = f"PH-{random.randint(1000, 9999)}"
     while Patient.query.get(patient_id):
         patient_id = f"PH-{random.randint(1000, 9999)}"
     
-    patient = Patient(
-        id=patient_id,
-        created_by=user.id,
-        name=data['patientName'],
-        phone=data.get('phone', ''),
-        age=data['age'],
-        gender=data['gender'],
-        drug_name=data['drugName'],
-        symptoms=data['reaction'],
-        risk_level=data['severity']
-    )
+    if duplicate_check['action'] == 'LINK':
+        # Similar case - create but link to existing
+        existing = duplicate_check['existing_case']
+        patient = Patient(
+            id=patient_id,
+            created_by=user.id,
+            name=name,
+            phone=phone,
+            email=email,
+            age=age,
+            gender=gender,
+            drug_name=drug_name,
+            symptoms=symptoms,
+            risk_level=data['severity'],
+            case_status='Linked',
+            linked_case_id=existing.id,
+            match_score=duplicate_check['match_score'],
+            match_notes=f"Auto-linked: {duplicate_check['reason']}"
+        )
+    else:
+        # No duplicate - create new
+        patient = Patient(
+            id=patient_id,
+            created_by=user.id,
+            name=name,
+            phone=phone,
+            email=email,
+            age=age,
+            gender=gender,
+            drug_name=drug_name,
+            symptoms=symptoms,
+            risk_level=data['severity']
+        )
     
     db.session.add(patient)
     db.session.commit()
     
-    return jsonify({'success': True, 'report_id': patient.id})
+    # Auto-send follow-up email if patient has email
+    followup_result = None
+    if patient.email:
+        followup_result = auto_send_followup_email(patient)
+    
+    response_data = {
+        'success': True,
+        'report_id': patient.id,
+        'case_status': patient.case_status,
+        'linked_case_id': patient.linked_case_id,
+        'duplicate_check': {
+            'action': duplicate_check['action'],
+            'match_score': duplicate_check['match_score'],
+            'reason': duplicate_check['reason']
+        }
+    }
+    if followup_result:
+        response_data['followup_email'] = followup_result
+    
+    return jsonify(response_data)
 
 
 @app.route('/api/pharmacy/settings', methods=['GET'])
