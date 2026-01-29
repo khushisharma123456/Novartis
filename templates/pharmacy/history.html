@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Submitted Reports - Pharmacy</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script type="module" src="/static/js/sidebar.js"></script>
+    <style>
+        .dashboard-layout { display: flex; }
+        .main-content { flex: 1; margin-left: var(--sidebar-width); padding: 2rem; background-color: #FAFAF9; transition: margin-left 0.3s ease; overflow-y: auto; min-height: 100vh; }
+        body.sidebar-collapsed .main-content { margin-left: 80px; }
+        
+        .header-section { margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center; }
+        .header-section h1 { font-size: 2rem; color: var(--primary-dark); margin: 0; }
+        .header-section p { color: var(--text-muted); margin: 0.5rem 0 0 0; font-size: 0.95rem; }
+        
+        .filters-row { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .filter-group { display: flex; align-items: center; gap: 0.5rem; }
+        .filter-group label { font-weight: 500; color: var(--text-muted); font-size: 0.9rem; }
+        .filter-group select, .filter-group input { padding: 0.5rem 1rem; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 0.9rem; }
+        
+        .card { background: white; border-radius: 12px; padding: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        
+        .table-container { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 1rem; text-align: left; border-bottom: 1px solid #E2E8F0; }
+        th { background: #F8FAFC; font-weight: 600; color: var(--primary-dark); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        tr:hover { background: #F9FAFB; }
+        
+        .badge { display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+        .badge-high { background: #FEE2E2; color: #B91C1C; }
+        .badge-medium { background: #FEF3C7; color: #92400E; }
+        .badge-low { background: #DCFCE7; color: #166534; }
+        .badge-submitted { background: #DBEAFE; color: #1E40AF; }
+        
+        .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
+        .empty-state i { width: 64px; height: 64px; color: #D1D5DB; margin-bottom: 1rem; }
+        .empty-state h3 { color: var(--primary-dark); margin-bottom: 0.5rem; }
+        
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+        .stat-card { background: white; border-radius: 8px; padding: 1rem; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .stat-card .value { font-size: 1.75rem; font-weight: 700; color: var(--primary-dark); }
+        .stat-card .label { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; }
+        
+        .action-btn { padding: 0.4rem 0.8rem; font-size: 0.8rem; border: none; border-radius: 4px; cursor: pointer; }
+        .btn-view { background: var(--secondary); color: var(--primary-dark); }
+        .btn-view:hover { background: var(--primary); color: white; }
+    </style>
+</head>
+<body>
+    <div class="dashboard-layout">
+        <app-sidebar></app-sidebar>
+        
+        <main class="main-content">
+            <div class="header-section">
+                <div>
+                    <h1>Submitted Reports</h1>
+                    <p>View all your submitted adverse drug reaction reports</p>
+                </div>
+                <button class="btn btn-primary" onclick="window.location.href='/pharmacy/reports'">
+                    <i data-lucide="plus" style="width: 16px; height: 16px; margin-right: 0.5rem;"></i>
+                    New Report
+                </button>
+            </div>
+
+            <!-- Stats Summary -->
+            <div class="stats-row">
+                <div class="stat-card">
+                    <div class="value" id="total-reports">0</div>
+                    <div class="label">Total Reports</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value" id="high-severity">0</div>
+                    <div class="label">High Severity</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value" id="medium-severity">0</div>
+                    <div class="label">Medium Severity</div>
+                </div>
+                <div class="stat-card">
+                    <div class="value" id="low-severity">0</div>
+                    <div class="label">Low Severity</div>
+                </div>
+            </div>
+
+            <!-- Filters -->
+            <div class="filters-row">
+                <div class="filter-group">
+                    <label>Severity:</label>
+                    <select id="severityFilter" onchange="filterReports()">
+                        <option value="">All</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>Search:</label>
+                    <input type="text" id="searchInput" placeholder="Search drug or patient..." oninput="filterReports()">
+                </div>
+            </div>
+
+            <!-- Reports Table -->
+            <div class="card">
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Report ID</th>
+                                <th>Date</th>
+                                <th>Patient</th>
+                                <th>Drug Name</th>
+                                <th>Reaction</th>
+                                <th>Severity</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reports-table">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 2rem;">
+                                    <i data-lucide="loader" class="spin"></i> Loading reports...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let allReports = [];
+
+        async function loadReports() {
+            try {
+                const response = await fetch('/api/pharmacy/reports');
+                const data = await response.json();
+                
+                if (data.success) {
+                    allReports = data.reports;
+                    renderReports(allReports);
+                    updateStats(allReports);
+                } else {
+                    showEmptyState('Failed to load reports');
+                }
+            } catch (error) {
+                console.error('Error loading reports:', error);
+                showEmptyState('Error connecting to server');
+            }
+        }
+
+        function renderReports(reports) {
+            const tbody = document.getElementById('reports-table');
+            
+            if (reports.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7">
+                            <div class="empty-state">
+                                <i data-lucide="file-x"></i>
+                                <h3>No Reports Found</h3>
+                                <p>You haven't submitted any reports yet. Click "New Report" to get started.</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                lucide.createIcons();
+                return;
+            }
+
+            tbody.innerHTML = reports.map(report => `
+                <tr>
+                    <td><strong>#${report.id}</strong></td>
+                    <td>${formatDate(report.date)}</td>
+                    <td>${report.patientName || 'Anonymous'}</td>
+                    <td>${report.drugName || '-'}</td>
+                    <td>${report.reaction || '-'}</td>
+                    <td><span class="badge badge-${(report.severity || 'low').toLowerCase()}">${capitalize(report.severity || 'Low')}</span></td>
+                    <td><span class="badge badge-submitted">${report.status || 'Submitted'}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        function updateStats(reports) {
+            document.getElementById('total-reports').textContent = reports.length;
+            document.getElementById('high-severity').textContent = reports.filter(r => (r.severity || '').toLowerCase() === 'high').length;
+            document.getElementById('medium-severity').textContent = reports.filter(r => (r.severity || '').toLowerCase() === 'medium').length;
+            document.getElementById('low-severity').textContent = reports.filter(r => (r.severity || '').toLowerCase() === 'low').length;
+        }
+
+        function filterReports() {
+            const severity = document.getElementById('severityFilter').value.toLowerCase();
+            const search = document.getElementById('searchInput').value.toLowerCase();
+
+            let filtered = allReports;
+
+            if (severity) {
+                filtered = filtered.filter(r => (r.severity || '').toLowerCase() === severity);
+            }
+
+            if (search) {
+                filtered = filtered.filter(r => 
+                    (r.drugName || '').toLowerCase().includes(search) ||
+                    (r.patientName || '').toLowerCase().includes(search) ||
+                    (r.reaction || '').toLowerCase().includes(search)
+                );
+            }
+
+            renderReports(filtered);
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-US', { 
+                year: 'numeric', 
+                month: 'short', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function capitalize(str) {
+            return str ? str.charAt(0).toUpperCase() + str.slice(1) : '';
+        }
+
+        function showEmptyState(message) {
+            document.getElementById('reports-table').innerHTML = `
+                <tr>
+                    <td colspan="7">
+                        <div class="empty-state">
+                            <i data-lucide="alert-circle"></i>
+                            <h3>${message}</h3>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            lucide.createIcons();
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadReports();
+            lucide.createIcons();
+        });
+    </script>
+</body>
+</html>

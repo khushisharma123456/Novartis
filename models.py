@@ -166,11 +166,17 @@ class Alert(db.Model):
     acknowledger = db.relationship('User', foreign_keys=[acknowledged_by], backref=db.backref('acknowledged_alerts', lazy=True))
     
     def to_dict(self):
+        # Generate a title if none exists
+        title = self.title
+        if not title:
+            severity_text = self.severity or 'Medium'
+            title = f"{severity_text} Severity Alert - {self.drug_name}"
+        
         return {
             'id': self.id,
             'drug_name': self.drug_name,
             'drugName': self.drug_name,
-            'title': self.title,
+            'title': title,
             'message': self.message,
             'severity': self.severity,
             'sender_id': self.sender_id,
@@ -188,7 +194,7 @@ class Alert(db.Model):
 
 class SideEffectReport(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    patient_id = db.Column(db.String(20), db.ForeignKey('patient.id'), nullable=False)
+    patient_id = db.Column(db.String(20), db.ForeignKey('patient.id'), nullable=True)  # Nullable for anonymised reports
     doctor_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     hospital_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True) # Hospital if doctor is registered
     drug_name = db.Column(db.String(100), nullable=False)
@@ -281,8 +287,7 @@ class PharmacySettings(db.Model):
             'complianceOfficer': self.compliance_officer or '',
             'autoReport': self.auto_report
         }
-
-
+        
 # === STEP 10: AI AGENT ORCHESTRATION ===
 
 class CaseAgent(db.Model):

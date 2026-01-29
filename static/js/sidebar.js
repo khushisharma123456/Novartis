@@ -32,7 +32,7 @@ export class Sidebar extends HTMLElement {
         ];
 
         const pharmaItems = [
-            { icon: 'activity', text: 'Overview', link: '/pharma/dashboard' },
+            { icon: 'activity', text: 'Safety Overview', link: '/pharma/dashboard' },
             { icon: 'pill', text: 'Drug Portfolio', link: '/pharma/drugs' },
             { icon: 'file-text', text: 'Reports', link: '/pharma/reports' },
             { icon: 'user-check', text: 'Patient Recall', link: '/pharma/patient-recall' },
@@ -40,7 +40,8 @@ export class Sidebar extends HTMLElement {
 
         const pharmacyItems = [
             { icon: 'home', text: 'Dashboard', link: '/pharmacy/dashboard' },
-            { icon: 'file-text', text: 'Reports', link: '/pharmacy/reports' },
+            { icon: 'file-plus-2', text: 'Submit Report', link: '/pharmacy/reports' },
+            { icon: 'clipboard-list', text: 'My Reports', link: '/pharmacy/history' },
             { icon: 'alert-triangle', text: 'Alerts', link: '/pharmacy/alerts' },
         ];
 

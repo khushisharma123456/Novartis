@@ -1,0 +1,88 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>Doctor Dashboard - Inteleyzer</title><link rel="stylesheet" href="/static/css/style.css"><script src="https://unpkg.com/lucide@latest"></script><script type="module" src="/static/js/sidebar.js"></script></head><body><div class="dashboard-layout"><app-sidebar></app-sidebar><main class="main-content"><header style="display: flex; flex-direction: column; align-items: center; margin-bottom: 2rem; text-align: center;"><div><h1>Dashboard</h1><p>Welcome back, <span id="doctor-name">Doctor</span></p></div></header><div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;"><div class="card"><div style="display: flex; justify-content: space-between; align-items: start;"><div><p style="margin: 0; font-size: 0.9rem;">Active Patients</p><h2 style="margin: 0.5rem 0 0 0; font-size: 2rem;" id="stat-total">0</h2></div><div style="padding: 0.5rem; background: var(--secondary); border-radius: 8px; color: var(--primary-dark);"><i data-lucide="users"></i></div></div></div><div class="card"><div style="display: flex; justify-content: space-between; align-items: start;"><div><p style="margin: 0; font-size: 0.9rem;">High Risk Alerts</p><h2 style="margin: 0.5rem 0 0 0; font-size: 2rem; color: #DC2626;" id="stat-high">0</h2></div><div style="padding: 0.5rem; background: #FEF2F2; border-radius: 8px; color: #DC2626;"><i data-lucide="alert-triangle"></i></div></div></div><div class="card"><div style="display: flex; justify-content: space-between; align-items: start;"><div><p style="margin: 0; font-size: 0.9rem;">Pending Reviews</p><h2 style="margin: 0.5rem 0 0 0; font-size: 2rem;" id="stat-pending">0</h2></div><div style="padding: 0.5rem; background: var(--secondary); border-radius: 8px; color: var(--text-muted);"><i data-lucide="clipboard-list"></i></div></div></div></div><section><h3 style="margin-bottom: 1rem;">Today's Alerts</h3>
+ <div class="card" id="alerts-container"><p style="text-align: center; padding: 2rem;">Loading alerts...</p></div></section></main></div><script type="module">import {
+    Auth
+}
+
+from '/static/js/auth.js';
+
+import {
+    DoctorApp
+}
+
+from '/static/js/doctor.js';
+
+const user=Auth.requireAuth();
+
+if (user) {
+    // Check if name already starts with "Dr." to avoid duplication
+    let displayName = user.name;
+    if (!displayName.toLowerCase().startsWith('dr.') && !displayName.toLowerCase().startsWith('dr ')) {
+        displayName = 'Dr. ' + displayName;
+    }
+    document.getElementById('doctor-name').textContent = displayName;
+}
+
+lucide.createIcons();
+
+async function init() {
+    try {
+        const patients=await DoctorApp.getPatients();
+
+        const total=patients.length;
+        
+        // Fetch actual safety alerts from pharma companies
+        const alertsResponse = await fetch('/api/alerts');
+        const alertsData = await alertsResponse.json();
+        const alerts = alertsData.alerts || [];
+        
+        // Count high and critical severity alerts
+        const highRiskAlerts = alerts.filter(a => a.severity === 'High' || a.severity === 'Critical').length;
+
+        document.getElementById('stat-total').textContent=total;
+        document.getElementById('stat-high').textContent=highRiskAlerts;
+        document.getElementById('stat-pending').textContent=Math.floor(total * 0.2);
+        
+        const container=document.getElementById('alerts-container');
+
+        if (alerts.length > 0) {
+            // Show recent safety alerts (limit to 5)
+            const recentAlerts = alerts.slice(0, 5);
+            container.innerHTML=`<div style="display: flex; flex-direction: column; gap: 1rem;">${
+                recentAlerts.map(alert=> {
+                    const severityColor = alert.severity === 'High' || alert.severity === 'Critical' ? '#DC2626' : 
+                                         alert.severity === 'Medium' ? '#F59E0B' : '#10B981';
+                    const severityBg = alert.severity === 'High' || alert.severity === 'Critical' ? '#FEF2F2' : 
+                                      alert.severity === 'Medium' ? '#FEF3C7' : '#D1FAE5';
+                    return `
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 1rem; border: 1px solid #E2E8F0; border-radius: 8px;">
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <div style="background: ${severityBg}; padding: 0.5rem; border-radius: 50%; color: ${severityColor};">
+                                <i data-lucide="alert-circle"></i>
+                            </div>
+                            <div>
+                                <strong style="display: block;">${alert.drug_name}</strong>
+                                <span style="font-size: 0.9rem; color: var(--text-muted);">${alert.message.substring(0, 80)}${alert.message.length > 80 ? '...' : ''}</span>
+                                <div style="margin-top: 0.25rem;">
+                                    <span style="font-size: 0.8rem; color: ${severityColor}; font-weight: 600;">${alert.severity} Severity</span>
+                                    <span style="font-size: 0.8rem; color: var(--text-muted); margin-left: 1rem;">From: ${alert.sender}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <a href="/doctor/alerts" class="btn btn-outline" style="font-size: 0.85rem;">View Details</a>
+                    </div>
+                    `;
+                }).join('')
+            }</div>`;
+            lucide.createIcons();
+        }
+        else {
+            container.innerHTML='<p style="text-align: center; padding: 2rem;">No active alerts required your attention.</p>';
+        }}
+
+    catch (err) {
+        console.error("Error loading dashboard data", err);
+        document.getElementById('alerts-container').innerHTML='<p style="text-align: center; color: red;">Error loading data.</p>';
+    }}
+
+init();
+</script></body></html>
