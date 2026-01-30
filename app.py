@@ -7,7 +7,7 @@ Run on: http://127.0.0.1:5000
 
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from flask_cors import CORS
-from models import db, User, Patient, Drug, Alert, CaseAgent, FollowUp, SideEffectReport, hospital_doctor, hospital_drug, hospital_pharmacy, doctor_patient
+from models import db, User, Patient, Drug, Alert, CaseAgent, FollowUp, SideEffectReport, AgentFollowupTracking, hospital_doctor, hospital_drug, hospital_pharmacy, doctor_patient
 from pv_backend.services.case_matching import match_new_case, should_accept_case
 from pv_backend.services.case_scoring import CaseScoringEngine, evaluate_case, score_case, check_followup
 from pv_backend.services.quality_agent import QualityAgentOrchestrator, FollowUpManager
@@ -24,14 +24,17 @@ app = Flask(__name__)
 
 def auto_send_followup(patient):
     """
-    Automatically send follow-up via all available channels (email and WhatsApp)
-    to patient immediately after creation.
+    Automatically start PV Agent follow-up cycle for a patient.
+    Uses PVAgentOrchestrator for Day 1/3/5/7 scheduling with:
+    - Case scoring
+    - LLM-generated questions
+    - Per-day email/WhatsApp coordination
     
     Args:
         patient: Patient model instance with email and/or phone field
         
     Returns:
-        dict: Result containing success status and details for each channel
+        dict: Result containing success status and tracking info
     """
     if not patient:
         return {'success': False, 'reason': 'no_patient', 'message': 'No patient provided'}
@@ -48,66 +51,76 @@ def auto_send_followup(patient):
         }
     
     try:
-        # Create follow-up agent
-        agent = FollowupAgent()
+        # Use PV Agent Orchestrator for enhanced follow-up
+        from pv_backend.services.followup_agent import PVAgentOrchestrator
         
-        # Generate and store token (single token for all channels)
-        token = agent.generate_followup_token(patient.id)
-        store_followup_token(patient.id, token)
+        orchestrator = PVAgentOrchestrator()
+        result = orchestrator.start_tracking(patient)
         
-        results = {
-            'success': False,
-            'patient_id': patient.id,
-            'email': None,
-            'whatsapp': None,
-            'channels_sent': 0
-        }
-        
-        # Send via email if available
-        if has_email:
-            email_result = agent.send_followup_email(patient, token)
-            results['email'] = {
-                'sent': email_result.get('success', False),
-                'address': patient.email,
-                'error': email_result.get('error') if not email_result.get('success') else None
-            }
-            if email_result.get('success'):
-                results['channels_sent'] += 1
-                print(f"✅ Auto-sent follow-up email to {patient.email} for patient {patient.id}")
-        
-        # Send via WhatsApp if available
-        if has_phone:
-            whatsapp_result = agent.send_followup_whatsapp(patient, token)
-            results['whatsapp'] = {
-                'sent': whatsapp_result.get('success', False),
-                'phone': patient.phone,
-                'error': whatsapp_result.get('error') if not whatsapp_result.get('success') else None
-            }
-            if whatsapp_result.get('success'):
-                results['channels_sent'] += 1
-                print(f"✅ Auto-sent follow-up WhatsApp to {patient.phone} for patient {patient.id}")
-        
-        # Update patient record if at least one channel succeeded
-        if results['channels_sent'] > 0:
+        if result.get('success'):
+            # Update patient record
             patient.followup_sent_date = datetime.utcnow()
             patient.followup_pending = True
             patient.follow_up_sent = True
             db.session.commit()
-            results['success'] = True
-            results['message'] = f"Follow-up sent via {results['channels_sent']} channel(s)"
+            
+            print(f"✅ PV Agent started for patient {patient.id} - Day 1 of 1/3/5/7 cycle")
+            
+            return {
+                'success': True,
+                'patient_id': patient.id,
+                'tracking_id': result.get('tracking_id'),
+                'current_day': result.get('current_day', 1),
+                'email': result.get('send_result', {}).get('email'),
+                'whatsapp': result.get('send_result', {}).get('whatsapp'),
+                'questions': result.get('questions', []),
+                'message': 'PV Agent follow-up cycle started (Day 1/3/5/7)'
+            }
         else:
-            results['message'] = "Failed to send follow-up via any channel"
-        
-        return results
+            return {
+                'success': False,
+                'reason': 'orchestrator_error',
+                'message': result.get('error', 'Failed to start PV Agent tracking'),
+                'patient_id': patient.id
+            }
             
     except Exception as e:
-        print(f"❌ Exception sending follow-up: {str(e)}")
-        return {
-            'success': False,
-            'reason': 'exception',
-            'message': str(e),
-            'patient_id': patient.id if patient else None
-        }
+        print(f"❌ Exception in PV Agent: {str(e)}")
+        # Fallback to basic follow-up
+        try:
+            agent = FollowupAgent()
+            token = agent.generate_followup_token(patient.id)
+            store_followup_token(patient.id, token)
+            
+            results = {'success': False, 'patient_id': patient.id, 'channels_sent': 0}
+            
+            if has_email:
+                email_result = agent.send_followup_email(patient, token)
+                if email_result.get('success'):
+                    results['channels_sent'] += 1
+            
+            if has_phone:
+                whatsapp_result = agent.send_followup_whatsapp(patient, token)
+                if whatsapp_result.get('success'):
+                    results['channels_sent'] += 1
+            
+            if results['channels_sent'] > 0:
+                patient.followup_sent_date = datetime.utcnow()
+                patient.followup_pending = True
+                patient.follow_up_sent = True
+                db.session.commit()
+                results['success'] = True
+                results['message'] = f"Fallback: Follow-up sent via {results['channels_sent']} channel(s)"
+            
+            return results
+            
+        except Exception as fallback_error:
+            return {
+                'success': False,
+                'reason': 'exception',
+                'message': str(e),
+                'patient_id': patient.id if patient else None
+            }
 
 
 def auto_send_followup_email(patient):
@@ -647,10 +660,11 @@ def create_patient():
         
         db.session.commit()
         
-        # Auto-send follow-up email if patient has email
+        # Auto-start PV Agent follow-up cycle if patient has email or phone
         followup_result = None
-        if patient.email:
-            followup_result = auto_send_followup_email(patient)
+        if patient.email or patient.phone:
+            followup_result = auto_send_followup(patient)
+            print(f"📱 PV Agent result for {patient.id}: {followup_result}")
         
         response_data = {
             'success': True,
@@ -2879,30 +2893,84 @@ def report_side_effect():
                     'followup': followup_result
                 }
                 
-                # === STEP 5b: Auto-send Follow-up Email if patient has email ===
-                if created_patient.email:
+                # === STEP 5b: Auto-send Follow-up via Email AND Conversational WhatsApp ===
+                if created_patient.email or created_patient.phone:
                     try:
                         from pv_backend.services.followup_agent import FollowupAgent
                         from pv_backend.routes.followup_routes import store_followup_token
+                        from pv_backend.services.llm_service import PREDEFINED_QUESTIONS, get_combined_questions
+                        from models import AgentFollowupTracking
                         
                         agent = FollowupAgent()
                         token = agent.generate_followup_token(created_patient.id)
                         store_followup_token(created_patient.id, token)
                         
-                        email_result = agent.send_followup_email(created_patient, token)
+                        channels_sent = 0
                         
-                        if email_result['success']:
+                        # Get combined questions for the patient
+                        questions_data = get_combined_questions(created_patient)
+                        
+                        # Send Email if patient has email (with form link)
+                        if created_patient.email:
+                            email_result = agent.send_followup_email(created_patient, token)
+                            if email_result.get('success'):
+                                channels_sent += 1
+                                case_scoring_result['followup_email_sent'] = True
+                                case_scoring_result['followup_email_to'] = created_patient.email
+                            else:
+                                case_scoring_result['followup_email_sent'] = False
+                                case_scoring_result['followup_email_error'] = email_result.get('error')
+                        
+                        # Send Conversational WhatsApp if patient has phone number
+                        if created_patient.phone:
+                            # Create tracking record for conversational flow
+                            tracking = AgentFollowupTracking.query.filter_by(
+                                patient_id=created_patient.id,
+                                status='active'
+                            ).first()
+                            
+                            if not tracking:
+                                tracking = AgentFollowupTracking(
+                                    patient_id=created_patient.id,
+                                    current_day=1,
+                                    next_followup_date=datetime.utcnow(),
+                                    predefined_questions=questions_data.get('predefined_questions', []),
+                                    llm_questions=questions_data.get('llm_questions', []),
+                                    day1_case_score=created_patient.case_score,
+                                    chatbot_state='awaiting_language',  # Start conversational flow
+                                    status='active'
+                                )
+                                db.session.add(tracking)
+                                db.session.flush()
+                            
+                            # Send conversational WhatsApp (asks questions one by one)
+                            whatsapp_result = agent.send_conversational_whatsapp(created_patient, tracking)
+                            if whatsapp_result.get('success'):
+                                channels_sent += 1
+                                case_scoring_result['followup_whatsapp_sent'] = True
+                                case_scoring_result['followup_whatsapp_to'] = created_patient.phone
+                                case_scoring_result['followup_whatsapp_sid'] = whatsapp_result.get('message_sid')
+                                case_scoring_result['followup_whatsapp_conversational'] = True
+                                print(f"✅ Conversational WhatsApp started with {created_patient.phone} - SID: {whatsapp_result.get('message_sid')}")
+                            else:
+                                case_scoring_result['followup_whatsapp_sent'] = False
+                                case_scoring_result['followup_whatsapp_error'] = whatsapp_result.get('error')
+                                print(f"❌ WhatsApp failed for {created_patient.phone}: {whatsapp_result.get('error')}")
+                        
+                        # Update patient record if any channel succeeded
+                        if channels_sent > 0:
                             created_patient.followup_sent_date = datetime.utcnow()
                             created_patient.followup_pending = True
-                            case_scoring_result['followup_email_sent'] = True
-                            case_scoring_result['followup_email_to'] = created_patient.email
-                        else:
-                            case_scoring_result['followup_email_sent'] = False
-                            case_scoring_result['followup_email_error'] = email_result.get('error')
-                    except Exception as email_err:
-                        print(f"Failed to send follow-up email: {email_err}")
+                            created_patient.follow_up_sent = True
+                            case_scoring_result['followup_channels_sent'] = channels_sent
+                            
+                    except Exception as followup_err:
+                        print(f"Failed to send follow-up: {followup_err}")
+                        import traceback
+                        traceback.print_exc()
                         case_scoring_result['followup_email_sent'] = False
-                        case_scoring_result['followup_email_error'] = str(email_err)
+                        case_scoring_result['followup_whatsapp_sent'] = False
+                        case_scoring_result['followup_error'] = str(followup_err)
         
         # === STEP 6: Send Alert to Pharma Company ===
         if drug and drug.company:

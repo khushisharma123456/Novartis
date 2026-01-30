@@ -148,7 +148,10 @@ def init_followup_routes(app, db, Patient):
     
     @app.route('/followup/<patient_id>/<token>', methods=['GET'])
     def followup_form_page(patient_id, token):
-        """Render the follow-up questionnaire form"""
+        """Render the follow-up questionnaire form with predefined + LLM-generated questions"""
+        from pv_backend.services.llm_service import get_combined_questions, PREDEFINED_QUESTIONS
+        from models import AgentFollowupTracking
+        
         # Validate token
         validation = validate_followup_token(patient_id, token)
         
@@ -161,14 +164,39 @@ def init_followup_routes(app, db, Patient):
             return render_template('followup/error.html', 
                                    error='Patient not found'), 404
         
-        # Get questions for this patient
+        # Get predefined questions from FollowupAgent
         agent = FollowupAgent()
-        questions = agent.get_followup_questions(patient)
+        predefined_questions = agent.get_followup_questions(patient)
+        
+        # Get LLM-generated questions based on case scoring and missing data
+        llm_questions_data = get_combined_questions(patient)
+        llm_questions = llm_questions_data.get('llm_questions', [])
+        
+        # Convert LLM questions to form format
+        for i, llm_q in enumerate(llm_questions):
+            predefined_questions.append({
+                'id': f'llm_question_{i}',
+                'type': 'textarea',
+                'label': llm_q.get('question', ''),
+                'placeholder': 'Please describe...',
+                'required': False,
+                'maps_to_column': llm_q.get('maps_to_column')
+            })
+        
+        # Get tracking record to check current day
+        tracking = AgentFollowupTracking.query.filter_by(
+            patient_id=patient_id,
+            status='active'
+        ).first()
+        
+        current_day = tracking.current_day if tracking else 1
         
         return render_template('followup/form.html',
                                patient=patient,
-                               questions=questions,
-                               token=token)
+                               questions=predefined_questions,
+                               token=token,
+                               current_day=current_day,
+                               llm_analysis=llm_questions_data.get('analysis', ''))
     
     @app.route('/api/followup/submit/<patient_id>/<token>', methods=['POST'])
     def submit_followup_response(patient_id, token):
@@ -196,6 +224,22 @@ def init_followup_routes(app, db, Patient):
         if result['success']:
             # Mark token as used
             followup_tokens[token]['used'] = True
+            
+            # Mark email as responded in tracking (so WhatsApp knows)
+            from models import AgentFollowupTracking
+            tracking = AgentFollowupTracking.query.filter_by(
+                patient_id=patient_id,
+                status='active'
+            ).first()
+            
+            if tracking:
+                current_day = tracking.current_day
+                setattr(tracking, f'day{current_day}_email_responded', True)
+                setattr(tracking, f'day{current_day}_responses', data)
+                # Update chatbot state so WhatsApp knows form was filled
+                if tracking.chatbot_state == 'awaiting_language':
+                    tracking.chatbot_state = 'informed'
+                db.session.commit()
             
             # Update patient follow-up status
             patient.followup_pending = False
@@ -245,4 +289,253 @@ def init_followup_routes(app, db, Patient):
             }
         })
     
+    # ===================================================================
+    # WHATSAPP CHATBOT WEBHOOK
+    # ===================================================================
+    
+    @app.route('/api/whatsapp/webhook', methods=['POST'])
+    def whatsapp_webhook():
+        """
+        Twilio WhatsApp webhook - receives incoming messages from patients.
+        Configure this URL in Twilio Console: Messaging > WhatsApp sandbox > Webhook URL
+        """
+        from pv_backend.services.whatsapp_chatbot import WhatsAppChatbot
+        from models import AgentFollowupTracking
+        
+        # Get message details from Twilio
+        from_number = request.values.get('From', '').replace('whatsapp:', '')
+        body = request.values.get('Body', '').strip()
+        
+        if not from_number or not body:
+            return 'OK', 200
+        
+        # Find patient by phone number
+        patient = Patient.query.filter(
+            Patient.phone.like(f'%{from_number[-10:]}%')  # Match last 10 digits
+        ).first()
+        
+        if not patient:
+            return 'OK', 200
+        
+        # Find or create tracking
+        tracking = AgentFollowupTracking.query.filter_by(
+            patient_id=patient.id,
+            status='active'
+        ).first()
+        
+        if not tracking:
+            return 'OK', 200
+        
+        # Process message
+        chatbot = WhatsAppChatbot()
+        result = chatbot.process_incoming_message(tracking, patient, body)
+        
+        # Send response
+        if result.get('response_message'):
+            chatbot.send_message(patient.phone, result['response_message'])
+        
+        return 'OK', 200
+    
+    # ===================================================================
+    # PHARMA RECALL API
+    # ===================================================================
+    
+    @app.route('/api/pharma/recall', methods=['POST'])
+    def request_patient_recall():
+        """
+        Pharma company requests patient recall for health check-up.
+        Sends empathetic WhatsApp message to patient.
+        """
+        if 'user_id' not in session:
+            return jsonify({'success': False, 'message': 'Not authenticated'}), 401
+        
+        from pv_backend.services.whatsapp_chatbot import WhatsAppChatbot
+        from models import AgentFollowupTracking, User
+        
+        data = request.get_json()
+        patient_id = data.get('patient_id')
+        reason = data.get('reason', 'Routine health check-up')
+        
+        if not patient_id:
+            return jsonify({'success': False, 'message': 'Patient ID required'}), 400
+        
+        patient = Patient.query.get(patient_id)
+        if not patient:
+            return jsonify({'success': False, 'message': 'Patient not found'}), 404
+        
+        if not patient.phone:
+            return jsonify({'success': False, 'message': 'Patient has no phone number'}), 400
+        
+        # Get company name from session user
+        user = User.query.get(session['user_id'])
+        company_name = user.name if user else 'Pharma Company'
+        
+        # Find tracking record
+        tracking = AgentFollowupTracking.query.filter_by(
+            patient_id=patient.id
+        ).first()
+        
+        if not tracking:
+            # Create a tracking record just for recall
+            tracking = AgentFollowupTracking(
+                patient_id=patient.id,
+                status='recall_only',
+                language_preference='English'
+            )
+            db.session.add(tracking)
+            db.session.commit()
+        
+        # Send recall message
+        chatbot = WhatsAppChatbot()
+        result = chatbot.send_pharma_recall(tracking, patient, company_name, reason)
+        
+        if result.get('success'):
+            patient.recalled = True
+            patient.recalled_by = session['user_id']
+            patient.recall_reason = reason
+            patient.recall_date = datetime.utcnow()
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Recall message sent to patient',
+                'patient_id': patient_id
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Failed to send recall message',
+                'error': result.get('error')
+            }), 500
+    
+    # ===================================================================
+    # 2-HOUR REMINDER CHECK (Call via scheduler/cron)
+    # ===================================================================
+    
+    @app.route('/api/agent/check-reminders', methods=['POST'])
+    def check_pending_reminders():
+        """
+        Check for unanswered questions and send reminders.
+        Should be called by a scheduler every 30 minutes.
+        """
+        from pv_backend.services.whatsapp_chatbot import check_and_send_reminders
+        
+        result = check_and_send_reminders()
+        
+        return jsonify({
+            'success': True,
+            'reminders_sent': result.get('reminders_sent', 0),
+            'details': result.get('details', [])
+        })
+    
+    # ===================================================================
+    # SCHEDULED DAY CYCLE PROCESSING (Day 3, 5, 7)
+    # ===================================================================
+    
+    @app.route('/api/agent/process-scheduled-followups', methods=['POST'])
+    def process_scheduled_followups():
+        """
+        Process scheduled Day 3, 5, 7 follow-ups.
+        Should be called by a scheduler once daily.
+        
+        This will:
+        1. Check for trackings due for next day cycle
+        2. Re-run case scoring with new response data
+        3. Get new LLM questions
+        4. Send Email + WhatsApp for the new day
+        """
+        from pv_backend.services.followup_agent import PVAgentOrchestrator
+        from models import AgentFollowupTracking
+        
+        orchestrator = PVAgentOrchestrator()
+        due_trackings = orchestrator.get_due_followups()
+        
+        results = {
+            'processed': 0,
+            'completed': 0,
+            'errors': 0,
+            'details': []
+        }
+        
+        for tracking in due_trackings:
+            try:
+                result = orchestrator.process_day_cycle(tracking.id)
+                
+                if result.get('success'):
+                    if result.get('completed'):
+                        results['completed'] += 1
+                    else:
+                        results['processed'] += 1
+                    
+                    results['details'].append({
+                        'tracking_id': tracking.id,
+                        'patient_id': tracking.patient_id,
+                        'current_day': result.get('current_day'),
+                        'previous_day': result.get('previous_day'),
+                        'status': 'success'
+                    })
+                else:
+                    results['errors'] += 1
+                    results['details'].append({
+                        'tracking_id': tracking.id,
+                        'patient_id': tracking.patient_id,
+                        'status': 'error',
+                        'error': result.get('error')
+                    })
+            except Exception as e:
+                results['errors'] += 1
+                results['details'].append({
+                    'tracking_id': tracking.id,
+                    'patient_id': tracking.patient_id,
+                    'status': 'exception',
+                    'error': str(e)
+                })
+        
+        return jsonify({
+            'success': True,
+            'message': f"Processed {results['processed']} day cycles, {results['completed']} completed, {results['errors']} errors",
+            'results': results
+        })
+    
+    # ===================================================================
+    # AGENT STATUS & DASHBOARD
+    # ===================================================================
+    
+    @app.route('/api/agent/status', methods=['GET'])
+    def get_agent_status():
+        """Get overall PV Agent status and statistics."""
+        from models import AgentFollowupTracking
+        
+        active_trackings = AgentFollowupTracking.query.filter_by(status='active').count()
+        completed_trackings = AgentFollowupTracking.query.filter_by(status='completed').count()
+        patient_fine = AgentFollowupTracking.query.filter_by(status='patient_fine').count()
+        
+        # Get pending reminders (questions not answered in 2+ hours)
+        now = datetime.utcnow()
+        two_hours_ago = now - timedelta(hours=2)
+        pending_reminders = AgentFollowupTracking.query.filter(
+            AgentFollowupTracking.status == 'active',
+            AgentFollowupTracking.chatbot_state == 'asking_questions',
+            AgentFollowupTracking.last_question_sent_at <= two_hours_ago,
+            AgentFollowupTracking.reminder_count < 3
+        ).count()
+        
+        # Get due followups (next day cycle ready)
+        due_followups = AgentFollowupTracking.query.filter(
+            AgentFollowupTracking.status == 'active',
+            AgentFollowupTracking.next_followup_date <= now
+        ).count()
+        
+        return jsonify({
+            'success': True,
+            'status': {
+                'active_trackings': active_trackings,
+                'completed_trackings': completed_trackings,
+                'patient_fine': patient_fine,
+                'pending_reminders': pending_reminders,
+                'due_followups': due_followups
+            }
+        })
+    
     return app
+

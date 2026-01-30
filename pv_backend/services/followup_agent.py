@@ -32,8 +32,8 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (override ensures fresh values)
+load_dotenv(override=True)
 
 # Gmail Configuration - Set these via environment variables in .env file
 GMAIL_CONFIG = {
@@ -478,6 +478,112 @@ _This is an automated message from the Pharmacovigilance Safety System._"""
                 'phone': patient.phone
             }
     
+    def send_conversational_whatsapp(self, patient, tracking=None) -> Dict[str, Any]:
+        """
+        Start a conversational WhatsApp flow with the patient.
+        Instead of sending a link, this starts an interactive chat where
+        questions are asked one by one.
+        
+        Args:
+            patient: Patient model object with phone number
+            tracking: Optional AgentFollowupTracking record
+            
+        Returns:
+            Dict with success status and details
+        """
+        # Validate WhatsApp configuration
+        if not self.is_whatsapp_configured():
+            return {
+                'success': False,
+                'error': 'WhatsApp not configured. Please set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_WHATSAPP_FROM environment variables.',
+                'setup_required': True
+            }
+        
+        # Validate patient has phone number
+        if not patient.phone:
+            return {
+                'success': False,
+                'error': f'Patient {patient.id} does not have a phone number on file.',
+                'patient_id': patient.id
+            }
+        
+        # Ensure Twilio client is initialized
+        if not self.twilio_client:
+            return {
+                'success': False,
+                'error': 'Twilio client not initialized. Check your credentials.',
+                'setup_required': True
+            }
+        
+        try:
+            # Format phone number for WhatsApp
+            phone = patient.phone.strip()
+            if not phone.startswith('+'):
+                if phone.startswith('0'):
+                    phone = '+91' + phone[1:]
+                elif len(phone) == 10:
+                    phone = '+91' + phone
+                else:
+                    phone = '+' + phone
+            
+            # Create conversational welcome message
+            message_body = f"""🙏 *Hello {patient.name}!*
+
+Welcome to our Patient Care Program.
+
+We're reaching out regarding your report about *{patient.drug_name}*. We'd like to check on your wellbeing with a few quick questions.
+
+📋 *Please select your preferred language:*
+
+1️⃣ English
+2️⃣ Hindi
+3️⃣ Tamil
+4️⃣ Telugu
+5️⃣ Bengali
+
+_Reply with the number or language name._
+
+🔒 Your responses are confidential and help us ensure your safety."""
+            
+            # Send via Twilio
+            message = self.twilio_client.messages.create(
+                from_=self.twilio_config['whatsapp_from'],
+                body=message_body,
+                to=f'whatsapp:{phone}'
+            )
+            
+            # Update tracking to awaiting language state if provided
+            if tracking:
+                from models import db
+                tracking.chatbot_state = 'awaiting_language'
+                tracking.last_question_sent_at = datetime.utcnow()
+                db.session.commit()
+            
+            return {
+                'success': True,
+                'message': f'Conversational WhatsApp started with {phone}',
+                'patient_id': patient.id,
+                'phone': phone,
+                'message_sid': message.sid,
+                'conversation_started': True,
+                'sent_at': datetime.utcnow().isoformat()
+            }
+            
+        except Exception as e:
+            error_message = str(e)
+            if 'unverified' in error_message.lower():
+                return {
+                    'success': False,
+                    'error': f'WhatsApp number not verified. In Twilio Sandbox mode, the recipient must first message your Twilio number.',
+                    'help': 'Ask the patient to send "join <sandbox-keyword>" to your Twilio WhatsApp number first.',
+                    'phone': patient.phone
+                }
+            return {
+                'success': False,
+                'error': f'Failed to send WhatsApp: {error_message}',
+                'phone': patient.phone
+            }
+    
     def send_followup_all_channels(self, patient, followup_token: str = None) -> Dict[str, Any]:
         """
         Send follow-up via all available channels (email and WhatsApp).
@@ -683,6 +789,313 @@ def create_followup_agent(db_session=None) -> FollowupAgent:
     return FollowupAgent(db_session)
 
 
+# ============================================================================
+# PV AGENT ORCHESTRATOR - Day 1/3/5/7 Follow-up Cycle
+# ============================================================================
+
+class PVAgentOrchestrator:
+    """
+    Enhanced Pharmacovigilance Agent that manages the complete follow-up cycle.
+    
+    Workflow:
+    1. On new patient: Create tracking record, run case scoring, get LLM questions
+    2. Day 1, 3, 5, 7: Process previous responses, re-score, get new questions
+    3. Each day: Send Gmail first, if not responded send WhatsApp
+    4. If patient says "fine": Remove from tracking
+    """
+    
+    FOLLOWUP_DAYS = [1, 3, 5, 7]
+    
+    def __init__(self, db_session=None):
+        self.db = db_session
+        self.followup_agent = FollowupAgent(db_session)
+    
+    def start_tracking(self, patient) -> dict:
+        """
+        Start tracking a new patient for Day 1/3/5/7 follow-up cycle.
+        Called when a new patient is created.
+        
+        Returns:
+            Dict with tracking info and initial questions
+        """
+        from models import db, AgentFollowupTracking
+        from .case_scoring import evaluate_case, score_case
+        from .llm_service import get_combined_questions, PREDEFINED_QUESTIONS
+        
+        try:
+            # 1. Run initial case scoring
+            evaluate_case(patient)
+            score_case(patient)
+            
+            # 2. Get combined questions (predefined + LLM)
+            questions_result = get_combined_questions(patient)
+            
+            # 3. Create tracking record
+            tracking = AgentFollowupTracking(
+                patient_id=patient.id,
+                current_day=1,
+                next_followup_date=datetime.utcnow(),
+                predefined_questions=PREDEFINED_QUESTIONS,
+                llm_questions=questions_result.get('llm_questions', []),
+                day1_case_score=patient.case_score
+            )
+            
+            db.session.add(tracking)
+            db.session.commit()
+            
+            print(f"✅ Started PV Agent tracking for patient {patient.id}")
+            
+            # 4. Send Day 1 messages
+            send_result = self._send_day_messages(patient, tracking, 1)
+            
+            return {
+                'success': True,
+                'tracking_id': tracking.id,
+                'current_day': 1,
+                'questions': questions_result.get('all_questions', []),
+                'send_result': send_result
+            }
+            
+        except Exception as e:
+            print(f"❌ Error starting PV tracking: {e}")
+            return {'success': False, 'error': str(e)}
+    
+    def process_day_cycle(self, tracking_id: int) -> dict:
+        """
+        Process a scheduled day cycle (Day 3, 5, or 7).
+        1. Process previous day's responses
+        2. Re-run case scoring
+        3. Ask LLM for new questions
+        4. Send messages
+        
+        Returns:
+            Dict with cycle results
+        """
+        from models import db, AgentFollowupTracking, Patient
+        from .case_scoring import evaluate_case, score_case
+        from .llm_service import get_combined_questions
+        
+        tracking = AgentFollowupTracking.query.get(tracking_id)
+        if not tracking or tracking.status != 'active':
+            return {'success': False, 'error': 'Tracking not found or inactive'}
+        
+        patient = Patient.query.get(tracking.patient_id)
+        if not patient:
+            return {'success': False, 'error': 'Patient not found'}
+        
+        # Get previous responses
+        previous_responses = self._get_previous_responses(tracking)
+        
+        # Re-run case scoring with new data
+        evaluate_case(patient)
+        score_case(patient)
+        
+        # Get new LLM questions based on updated data
+        questions_result = get_combined_questions(patient, previous_responses)
+        
+        # Update tracking with new questions
+        tracking.llm_questions = questions_result.get('llm_questions', [])
+        
+        # Move to next day
+        current_day = tracking.current_day
+        next_day_idx = self.FOLLOWUP_DAYS.index(current_day) + 1
+        
+        if next_day_idx >= len(self.FOLLOWUP_DAYS):
+            # Completed all days
+            tracking.status = 'completed'
+            db.session.commit()
+            return {'success': True, 'message': 'All follow-up days completed', 'completed': True}
+        
+        next_day = self.FOLLOWUP_DAYS[next_day_idx]
+        tracking.current_day = next_day
+        
+        # Update case score for this day
+        setattr(tracking, f'day{next_day}_case_score', patient.case_score)
+        
+        db.session.commit()
+        
+        # Send messages for this day
+        send_result = self._send_day_messages(patient, tracking, next_day)
+        
+        return {
+            'success': True,
+            'current_day': next_day,
+            'previous_day': current_day,
+            'case_score': patient.case_score,
+            'questions': questions_result.get('all_questions', []),
+            'send_result': send_result
+        }
+    
+    def process_response(self, tracking_id: int, responses: dict, channel: str = 'email') -> dict:
+        """
+        Process patient response for current day.
+        
+        Args:
+            tracking_id: AgentFollowupTracking ID
+            responses: Dict of question_id -> answer
+            channel: 'email' or 'whatsapp'
+            
+        Returns:
+            Dict with processing results
+        """
+        from models import db, AgentFollowupTracking, Patient
+        from .llm_service import PrivacySafeLLMService
+        
+        tracking = AgentFollowupTracking.query.get(tracking_id)
+        if not tracking:
+            return {'success': False, 'error': 'Tracking not found'}
+        
+        patient = Patient.query.get(tracking.patient_id)
+        current_day = tracking.current_day
+        
+        # Mark channel as responded
+        if channel == 'email':
+            setattr(tracking, f'day{current_day}_email_responded', True)
+        
+        # Store responses
+        setattr(tracking, f'day{current_day}_responses', responses)
+        
+        # Validate responses with LLM and update patient
+        llm_service = PrivacySafeLLMService()
+        updated_columns = []
+        
+        for question_id, answer in responses.items():
+            # Check if patient says they're fine
+            intent = llm_service.detect_patient_intent(str(answer))
+            if intent == 'fine':
+                tracking.patient_said_fine = True
+                tracking.status = 'patient_fine'
+                db.session.commit()
+                print(f"✅ Patient {patient.id} said they're fine - stopping follow-ups")
+                return {
+                    'success': True,
+                    'patient_fine': True,
+                    'message': 'Patient reported feeling fine - follow-up stopped'
+                }
+            
+            # Validate and map response
+            all_questions = (tracking.predefined_questions or []) + (tracking.llm_questions or [])
+            question_data = next((q for q in all_questions if q.get('id') == question_id or q.get('question') == question_id), None)
+            
+            if question_data and question_data.get('maps_to_column'):
+                column = question_data['maps_to_column']
+                validation = llm_service.validate_response(
+                    question_data.get('question', question_id),
+                    column,
+                    str(answer)
+                )
+                
+                if validation.get('is_useful') and validation.get('extracted_value') is not None:
+                    if hasattr(patient, column):
+                        setattr(patient, column, validation['extracted_value'])
+                        updated_columns.append(column)
+        
+        db.session.commit()
+        
+        return {
+            'success': True,
+            'updated_columns': updated_columns,
+            'patient_fine': False,
+            'next_day': self._get_next_day(current_day)
+        }
+    
+    def should_send_whatsapp(self, tracking_id: int) -> bool:
+        """
+        Check if WhatsApp should be sent for current day.
+        Returns False if email form was already filled for this day.
+        """
+        from models import AgentFollowupTracking
+        
+        tracking = AgentFollowupTracking.query.get(tracking_id)
+        if not tracking:
+            return False
+        
+        current_day = tracking.current_day
+        email_responded = getattr(tracking, f'day{current_day}_email_responded', False)
+        
+        # Don't send WhatsApp if email was already responded
+        return not email_responded
+    
+    def _send_day_messages(self, patient, tracking, day: int) -> dict:
+        """Send messages for a specific day (Gmail first, then Conversational WhatsApp)."""
+        from models import db
+        
+        results = {'email': None, 'whatsapp': None}
+        
+        # Generate token for email link
+        token = self.followup_agent.generate_followup_token(patient.id)
+        
+        # Try email first (with form link)
+        if patient.email:
+            email_result = self.followup_agent.send_followup_email(patient, token)
+            results['email'] = email_result
+            setattr(tracking, f'day{day}_email_sent', True)
+            
+            if email_result.get('success'):
+                print(f"✅ Day {day}: Sent email to {patient.email}")
+        
+        # Send Conversational WhatsApp (interactive chat, not a link)
+        if patient.phone:
+            # Use conversational WhatsApp that asks questions one by one
+            whatsapp_result = self.followup_agent.send_conversational_whatsapp(patient, tracking)
+            results['whatsapp'] = whatsapp_result
+            setattr(tracking, f'day{day}_whatsapp_sent', True)
+            
+            if whatsapp_result.get('success'):
+                print(f"✅ Day {day}: Started conversational WhatsApp with {patient.phone}")
+        
+        # Schedule next day
+        next_day = self._get_next_day(day)
+        if next_day:
+            days_until_next = next_day - day
+            tracking.next_followup_date = datetime.utcnow() + timedelta(days=days_until_next)
+        
+        db.session.commit()
+        
+        return results
+    
+    def _get_previous_responses(self, tracking) -> dict:
+        """Get all previous day responses."""
+        responses = {}
+        for day in self.FOLLOWUP_DAYS:
+            if day < tracking.current_day:
+                day_responses = getattr(tracking, f'day{day}_responses', None)
+                if day_responses:
+                    responses[f'day{day}'] = day_responses
+        return responses
+    
+    def _get_next_day(self, current_day: int) -> int:
+        """Get the next scheduled day, or None if complete."""
+        try:
+            idx = self.FOLLOWUP_DAYS.index(current_day)
+            if idx + 1 < len(self.FOLLOWUP_DAYS):
+                return self.FOLLOWUP_DAYS[idx + 1]
+        except ValueError:
+            pass
+        return None
+    
+    def get_active_trackings(self) -> list:
+        """Get all active tracking records for scheduled processing."""
+        from models import AgentFollowupTracking
+        
+        return AgentFollowupTracking.query.filter_by(status='active').all()
+    
+    def get_due_followups(self) -> list:
+        """Get trackings that are due for next day cycle."""
+        from models import AgentFollowupTracking
+        
+        now = datetime.utcnow()
+        return AgentFollowupTracking.query.filter(
+            AgentFollowupTracking.status == 'active',
+            AgentFollowupTracking.next_followup_date <= now
+        ).all()
+
+
+def create_pv_orchestrator(db_session=None) -> PVAgentOrchestrator:
+    """Factory function to create a PVAgentOrchestrator instance."""
+    return PVAgentOrchestrator(db_session)
+
+
 # Example usage and testing
 if __name__ == '__main__':
     print("=" * 60)
@@ -721,3 +1134,4 @@ To use this agent, you need to configure Gmail SMTP:
 5. TEST THE CONFIGURATION:
    python -c "from pv_backend.services.followup_agent import FollowupAgent; agent = FollowupAgent(); print('Configured:', agent.is_email_configured())"
 """)
+

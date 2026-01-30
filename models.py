@@ -334,3 +334,74 @@ class FollowUp(db.Model):
     
     case = db.relationship('Patient', backref=db.backref('followups', lazy=True))
     assigned_user = db.relationship('User', backref=db.backref('assigned_followups', lazy=True))
+
+
+class AgentFollowupTracking(db.Model):
+    """
+    PV Agent tracking - manages Day 1/3/5/7 follow-up cycles per patient.
+    Stores questions (predefined + LLM), per-day messaging status, and case scores.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.String(20), db.ForeignKey('patient.id'), nullable=False)
+    
+    # Schedule: Day 1, 3, 5, 7
+    current_day = db.Column(db.Integer, default=1)  # 1, 3, 5, 7
+    next_followup_date = db.Column(db.DateTime, nullable=True)
+    
+    # Questions (updated each cycle by LLM)
+    predefined_questions = db.Column(db.JSON, nullable=True)
+    llm_questions = db.Column(db.JSON, nullable=True)
+    
+    # Day 1 tracking
+    day1_email_sent = db.Column(db.Boolean, default=False)
+    day1_email_responded = db.Column(db.Boolean, default=False)
+    day1_whatsapp_sent = db.Column(db.Boolean, default=False)
+    day1_responses = db.Column(db.JSON, nullable=True)
+    day1_case_score = db.Column(db.Integer, nullable=True)
+    
+    # Day 3 tracking
+    day3_email_sent = db.Column(db.Boolean, default=False)
+    day3_email_responded = db.Column(db.Boolean, default=False)
+    day3_whatsapp_sent = db.Column(db.Boolean, default=False)
+    day3_responses = db.Column(db.JSON, nullable=True)
+    day3_case_score = db.Column(db.Integer, nullable=True)
+    
+    # Day 5 tracking
+    day5_email_sent = db.Column(db.Boolean, default=False)
+    day5_email_responded = db.Column(db.Boolean, default=False)
+    day5_whatsapp_sent = db.Column(db.Boolean, default=False)
+    day5_responses = db.Column(db.JSON, nullable=True)
+    day5_case_score = db.Column(db.Integer, nullable=True)
+    
+    # Day 7 tracking
+    day7_email_sent = db.Column(db.Boolean, default=False)
+    day7_email_responded = db.Column(db.Boolean, default=False)
+    day7_whatsapp_sent = db.Column(db.Boolean, default=False)
+    day7_responses = db.Column(db.JSON, nullable=True)
+    day7_case_score = db.Column(db.Integer, nullable=True)
+    
+    # Status
+    status = db.Column(db.String(20), default='active')  # active, completed, patient_fine
+    patient_said_fine = db.Column(db.Boolean, default=False)
+    
+    # WhatsApp Chatbot
+    language_preference = db.Column(db.String(20), default='English')
+    chatbot_state = db.Column(db.String(30), default='awaiting_language')  # awaiting_language, asking_questions, informed
+    
+    # 2-Hour Reminder Tracking
+    unanswered_questions = db.Column(db.JSON, nullable=True)  # List of questions not answered
+    current_question_index = db.Column(db.Integer, default=0)
+    last_question_sent_at = db.Column(db.DateTime, nullable=True)
+    reminder_count = db.Column(db.Integer, default=0)  # How many reminders sent for current question
+    
+    # Pharma Recall
+    recall_requested = db.Column(db.Boolean, default=False)
+    recall_reason = db.Column(db.Text, nullable=True)
+    recall_message_sent = db.Column(db.Boolean, default=False)
+    recall_accepted = db.Column(db.Boolean, nullable=True)  # None = not responded, True = accepted, False = declined
+    
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    patient = db.relationship('Patient', backref=db.backref('agent_tracking', lazy=True))
+

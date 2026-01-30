@@ -5,11 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Follow-up Questionnaire</title>
     <style>
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -18,10 +14,7 @@
             padding: 20px;
         }
         
-        .container {
-            max-width: 700px;
-            margin: 0 auto;
-        }
+        .container { max-width: 700px; margin: 0 auto; }
         
         .card {
             background: white;
@@ -37,15 +30,41 @@
             text-align: center;
         }
         
-        .header h1 {
-            font-size: 1.8rem;
-            margin-bottom: 8px;
+        .header h1 { font-size: 1.8rem; margin-bottom: 8px; }
+        .header p { opacity: 0.8; font-size: 0.95rem; }
+        
+        /* Language Selector */
+        .language-selector {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            padding: 20px 30px;
+            text-align: center;
         }
         
-        .header p {
-            opacity: 0.8;
-            font-size: 0.95rem;
+        .language-selector label {
+            color: white;
+            font-weight: 600;
+            margin-right: 15px;
+            font-size: 1rem;
         }
+        
+        .language-selector select {
+            padding: 10px 20px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            background: white;
+            min-width: 200px;
+        }
+        
+        .trust-banner {
+            background: #ecfdf5;
+            padding: 15px 30px;
+            border-bottom: 1px solid #d1fae5;
+            text-align: center;
+        }
+        
+        .trust-banner p { color: #065f46; font-size: 0.95rem; }
         
         .patient-info {
             background: #f0f7ff;
@@ -74,22 +93,10 @@
             border-left: 3px solid #3b82f6;
         }
         
-        .info-item label {
-            font-size: 0.75rem;
-            color: #6b7280;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
+        .info-item label { font-size: 0.75rem; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; }
+        .info-item p { color: #1f2937; font-weight: 600; margin-top: 4px; }
         
-        .info-item p {
-            color: #1f2937;
-            font-weight: 600;
-            margin-top: 4px;
-        }
-        
-        .form-content {
-            padding: 30px;
-        }
+        .form-content { padding: 30px; }
         
         .form-intro {
             background: #fef3c7;
@@ -99,14 +106,9 @@
             border-left: 4px solid #f59e0b;
         }
         
-        .form-intro p {
-            color: #92400e;
-            font-size: 0.9rem;
-        }
+        .form-intro p { color: #92400e; font-size: 0.9rem; }
         
-        .question-group {
-            margin-bottom: 25px;
-        }
+        .question-group { margin-bottom: 25px; }
         
         .question-group label {
             display: block;
@@ -116,23 +118,10 @@
             font-size: 0.95rem;
         }
         
-        .question-group label .required {
-            color: #dc2626;
-            margin-left: 4px;
-        }
+        .question-group label .required { color: #dc2626; margin-left: 4px; }
+        .question-group label .optional { color: #6b7280; font-weight: normal; font-size: 0.85rem; }
         
-        .question-group label .optional {
-            color: #6b7280;
-            font-weight: normal;
-            font-size: 0.85rem;
-        }
-        
-        input[type="text"],
-        input[type="date"],
-        input[type="email"],
-        input[type="tel"],
-        select,
-        textarea {
+        input[type="text"], input[type="date"], input[type="email"], input[type="tel"], select, textarea {
             width: 100%;
             padding: 12px 16px;
             border: 2px solid #e5e7eb;
@@ -142,23 +131,14 @@
             font-family: inherit;
         }
         
-        input:focus,
-        select:focus,
-        textarea:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
         
-        textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
-        
-        select {
-            cursor: pointer;
-            background: white;
-        }
+        textarea { resize: vertical; min-height: 100px; }
+        select { cursor: pointer; background: white; }
         
         .submit-section {
             padding: 20px 30px 30px;
@@ -179,37 +159,15 @@
             transition: transform 0.2s, box-shadow 0.2s;
         }
         
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3);
-        }
+        .submit-btn:hover { transform: translateY(-2px); box-shadow: 0 10px 30px rgba(59, 130, 246, 0.3); }
+        .submit-btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         
-        .submit-btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
+        .privacy-note { margin-top: 15px; font-size: 0.8rem; color: #6b7280; }
         
-        .privacy-note {
-            margin-top: 15px;
-            font-size: 0.8rem;
-            color: #6b7280;
-        }
-        
-        .privacy-note i {
-            margin-right: 4px;
-        }
-        
-        /* Success message styles */
-        .success-message {
-            display: none;
-            text-align: center;
-            padding: 40px;
-        }
+        .success-message { display: none; text-align: center; padding: 40px; }
         
         .success-icon {
-            width: 80px;
-            height: 80px;
+            width: 80px; height: 80px;
             background: #10b981;
             border-radius: 50%;
             display: flex;
@@ -218,48 +176,22 @@
             margin: 0 auto 20px;
         }
         
-        .success-icon svg {
-            width: 40px;
-            height: 40px;
-            color: white;
-        }
+        .success-icon svg { width: 40px; height: 40px; color: white; }
+        .success-message h2 { color: #065f46; margin-bottom: 10px; }
+        .success-message p { color: #6b7280; }
         
-        .success-message h2 {
-            color: #065f46;
-            margin-bottom: 10px;
-        }
+        .score-improvement { background: #ecfdf5; padding: 20px; border-radius: 8px; margin-top: 20px; }
+        .score-improvement h4 { color: #065f46; margin-bottom: 10px; }
         
-        .success-message p {
-            color: #6b7280;
-        }
-        
-        .score-improvement {
-            background: #ecfdf5;
-            padding: 20px;
-            border-radius: 8px;
-            margin-top: 20px;
-        }
-        
-        .score-improvement h4 {
-            color: #065f46;
-            margin-bottom: 10px;
-        }
-        
-        /* Loading state */
         .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #fff;
-            border-radius: 50%;
+            display: inline-block; width: 20px; height: 20px;
+            border: 3px solid #fff; border-radius: 50%;
             border-top-color: transparent;
             animation: spin 1s ease-in-out infinite;
             margin-right: 10px;
         }
         
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         
         @media (max-width: 600px) {
             body { padding: 10px; }
@@ -267,6 +199,7 @@
             .header h1 { font-size: 1.4rem; }
             .form-content { padding: 20px; }
             .submit-section { padding: 15px 20px 20px; }
+            .language-selector select { min-width: 150px; }
         }
     </style>
 </head>
@@ -274,23 +207,48 @@
     <div class="container">
         <div class="card">
             <div class="header">
-                <h1>📋 Follow-up Questionnaire</h1>
-                <p>Pharmacovigilance Safety Monitoring</p>
+                <h1 id="headerTitle">📋 Follow-up Questionnaire</h1>
+                <p id="headerSubtitle">Pharmacovigilance Safety Monitoring</p>
+            </div>
+            
+            <!-- Language Selector -->
+            <div class="language-selector">
+                <label id="langLabel">🌐 Select Language:</label>
+                <select id="languageSelect" onchange="changeLanguage(this.value)">
+                    <option value="en">English</option>
+                    <option value="hi">हिंदी (Hindi)</option>
+                    <option value="bn">বাংলা (Bengali)</option>
+                    <option value="te">తెలుగు (Telugu)</option>
+                    <option value="mr">मराठी (Marathi)</option>
+                    <option value="ta">தமிழ் (Tamil)</option>
+                    <option value="gu">ગુજરાતી (Gujarati)</option>
+                    <option value="kn">ಕನ್ನಡ (Kannada)</option>
+                    <option value="ml">മലയാളം (Malayalam)</option>
+                    <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
+                    <option value="or">ଓଡ଼ିଆ (Odia)</option>
+                    <option value="as">অসমীয়া (Assamese)</option>
+                    <option value="ur">اردو (Urdu)</option>
+                </select>
+            </div>
+            
+            <!-- Trust Banner -->
+            <div class="trust-banner">
+                <p id="trustText">🙏 We care about your health and wellbeing. Your responses are completely confidential and help us serve you better.</p>
             </div>
             
             <div class="patient-info">
-                <h3>Your Report Information</h3>
+                <h3 id="infoTitle">Your Report Information</h3>
                 <div class="info-grid">
                     <div class="info-item">
-                        <label>Patient ID</label>
+                        <label id="labelPatientId">Patient ID</label>
                         <p>{{ patient.id }}</p>
                     </div>
                     <div class="info-item">
-                        <label>Medication</label>
+                        <label id="labelMedication">Medication</label>
                         <p>{{ patient.drug_name }}</p>
                     </div>
                     <div class="info-item">
-                        <label>Report Date</label>
+                        <label id="labelReportDate">Report Date</label>
                         <p>{{ patient.created_at.strftime('%b %d, %Y') if patient.created_at else 'N/A' }}</p>
                     </div>
                 </div>
@@ -298,7 +256,7 @@
             
             <form id="followupForm" class="form-content">
                 <div class="form-intro">
-                    <p>🔒 Your responses help improve medication safety. All information is kept confidential.</p>
+                    <p id="formIntroText">🔒 Your responses help improve medication safety. All information is kept confidential.</p>
                 </div>
                 
                 {% for question in questions %}
@@ -314,7 +272,7 @@
                     
                     {% if question.type == 'select' %}
                     <select id="{{ question.id }}" name="{{ question.id }}" {% if question.required %}required{% endif %}>
-                        <option value="">-- Select an option --</option>
+                        <option value="" data-translate="selectOption">-- Select an option --</option>
                         {% for option in question.options %}
                         <option value="{{ option }}">{{ option }}</option>
                         {% endfor %}
@@ -335,9 +293,9 @@
             
             <div class="submit-section">
                 <button type="submit" class="submit-btn" id="submitBtn" onclick="submitForm()">
-                    Submit Response
+                    <span id="submitText">Submit Response</span>
                 </button>
-                <p class="privacy-note">
+                <p class="privacy-note" id="privacyNote">
                     🔐 Your information is encrypted and handled according to healthcare privacy regulations.
                 </p>
             </div>
@@ -349,8 +307,8 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
                     </svg>
                 </div>
-                <h2>Thank You!</h2>
-                <p>Your follow-up response has been recorded successfully.</p>
+                <h2 id="successTitle">Thank You!</h2>
+                <p id="successText">Your follow-up response has been recorded successfully.</p>
                 <div class="score-improvement" id="scoreImprovement">
                     <h4>📊 Case Update</h4>
                     <p id="scoreDetails">Your response has helped improve the case data quality.</p>
@@ -363,9 +321,305 @@
         const patientId = "{{ patient.id }}";
         const token = "{{ token }}";
         
+        // Multi-language translations for all Indian languages
+        const translations = {
+            en: {
+                headerTitle: "📋 Follow-up Questionnaire",
+                headerSubtitle: "Pharmacovigilance Safety Monitoring",
+                langLabel: "🌐 Select Language:",
+                trustText: "🙏 We care about your health and wellbeing. Your responses are completely confidential and help us serve you better.",
+                infoTitle: "Your Report Information",
+                labelPatientId: "Patient ID",
+                labelMedication: "Medication",
+                labelReportDate: "Report Date",
+                formIntroText: "🔒 Your responses help improve medication safety. All information is kept confidential.",
+                optionalText: "(Optional)",
+                selectOption: "-- Select an option --",
+                submitText: "Submit Response",
+                privacyNote: "🔐 Your information is encrypted and handled according to healthcare privacy regulations.",
+                successTitle: "Thank You!",
+                successText: "Your follow-up response has been recorded successfully.",
+                fillRequired: "Please fill in all required fields.",
+                submitting: "Submitting..."
+            },
+            hi: {
+                headerTitle: "📋 फॉलो-अप प्रश्नावली",
+                headerSubtitle: "फार्माकोविजिलेंस सुरक्षा निगरानी",
+                langLabel: "🌐 भाषा चुनें:",
+                trustText: "🙏 हम आपके स्वास्थ्य और कल्याण की परवाह करते हैं। आपकी प्रतिक्रियाएं पूरी तरह से गोपनीय हैं।",
+                infoTitle: "आपकी रिपोर्ट की जानकारी",
+                labelPatientId: "रोगी आईडी",
+                labelMedication: "दवाई",
+                labelReportDate: "रिपोर्ट की तारीख",
+                formIntroText: "🔒 आपकी प्रतिक्रियाएं दवा सुरक्षा में सुधार करने में मदद करती हैं। सभी जानकारी गोपनीय रखी जाती है।",
+                optionalText: "(वैकल्पिक)",
+                selectOption: "-- एक विकल्प चुनें --",
+                submitText: "प्रतिक्रिया जमा करें",
+                privacyNote: "🔐 आपकी जानकारी एन्क्रिप्टेड है और स्वास्थ्य गोपनीयता नियमों के अनुसार संभाली जाती है।",
+                successTitle: "धन्यवाद!",
+                successText: "आपकी फॉलो-अप प्रतिक्रिया सफलतापूर्वक दर्ज की गई है।",
+                fillRequired: "कृपया सभी आवश्यक फ़ील्ड भरें।",
+                submitting: "जमा हो रहा है..."
+            },
+            bn: {
+                headerTitle: "📋 ফলো-আপ প্রশ্নাবলী",
+                headerSubtitle: "ফার্মাকোভিজিল্যান্স নিরাপত্তা পর্যবেক্ষণ",
+                langLabel: "🌐 ভাষা নির্বাচন করুন:",
+                trustText: "🙏 আমরা আপনার স্বাস্থ্য এবং মঙ্গলের যত্ন নিই। আপনার প্রতিক্রিয়া সম্পূর্ণ গোপনীয়।",
+                infoTitle: "আপনার রিপোর্টের তথ্য",
+                labelPatientId: "রোগী আইডি",
+                labelMedication: "ওষুধ",
+                labelReportDate: "রিপোর্টের তারিখ",
+                formIntroText: "🔒 আপনার প্রতিক্রিয়া ওষুধের নিরাপত্তা উন্নত করতে সাহায্য করে।",
+                optionalText: "(ঐচ্ছিক)",
+                selectOption: "-- একটি বিকল্প নির্বাচন করুন --",
+                submitText: "প্রতিক্রিয়া জমা দিন",
+                privacyNote: "🔐 আপনার তথ্য এনক্রিপ্ট করা এবং গোপনীয়তা বিধি অনুযায়ী পরিচালিত।",
+                successTitle: "ধন্যবাদ!",
+                successText: "আপনার ফলো-আপ প্রতিক্রিয়া সফলভাবে রেকর্ড করা হয়েছে।",
+                fillRequired: "সব প্রয়োজনীয় ক্ষেত্র পূরণ করুন।",
+                submitting: "জমা হচ্ছে..."
+            },
+            te: {
+                headerTitle: "📋 ఫాలో-అప్ ప్రశ్నాపత్రం",
+                headerSubtitle: "ఫార్మకోవిజిలెన్స్ భద్రతా పర్యవేక్షణ",
+                langLabel: "🌐 భాష ఎంచుకోండి:",
+                trustText: "🙏 మీ ఆరోగ్యం మరియు శ్రేయస్సు మాకు ముఖ్యం. మీ ప్రతిస్పందనలు పూర్తిగా గోప్యంగా ఉంటాయి.",
+                infoTitle: "మీ రిపోర్ట్ సమాచారం",
+                labelPatientId: "రోగి ID",
+                labelMedication: "మందు",
+                labelReportDate: "రిపోర్ట్ తేదీ",
+                formIntroText: "🔒 మీ ప్రతిస్పందనలు మందుల భద్రతను మెరుగుపరచడంలో సహాయపడతాయి.",
+                optionalText: "(ఐచ్ఛికం)",
+                selectOption: "-- ఒక ఎంపిక ఎంచుకోండి --",
+                submitText: "ప్రతిస్పందన సమర్పించండి",
+                privacyNote: "🔐 మీ సమాచారం ఎన్‌క్రిప్ట్ చేయబడింది మరియు గోప్యతా నిబంధనల ప్రకారం నిర్వహించబడుతుంది.",
+                successTitle: "ధన్యవాదాలు!",
+                successText: "మీ ఫాలో-అప్ ప్రతిస్పందన విజయవంతంగా నమోదు చేయబడింది.",
+                fillRequired: "దయచేసి అన్ని అవసరమైన ఫీల్డ్‌లను పూరించండి.",
+                submitting: "సమర్పిస్తోంది..."
+            },
+            mr: {
+                headerTitle: "📋 फॉलो-अप प्रश्नावली",
+                headerSubtitle: "फार्माकोव्हिजिलन्स सुरक्षा देखरेख",
+                langLabel: "🌐 भाषा निवडा:",
+                trustText: "🙏 आम्ही तुमच्या आरोग्याची आणि कल्याणाची काळजी घेतो। तुमचे प्रतिसाद पूर्णपणे गोपनीय आहेत.",
+                infoTitle: "तुमच्या अहवालाची माहिती",
+                labelPatientId: "रुग्ण आयडी",
+                labelMedication: "औषध",
+                labelReportDate: "अहवालाची तारीख",
+                formIntroText: "🔒 तुमचे प्रतिसाद औषध सुरक्षा सुधारण्यास मदत करतात।",
+                optionalText: "(पर्यायी)",
+                selectOption: "-- एक पर्याय निवडा --",
+                submitText: "प्रतिसाद सबमिट करा",
+                privacyNote: "🔐 तुमची माहिती एन्क्रिप्ट केलेली आहे आणि गोपनीयता नियमांनुसार हाताळली जाते.",
+                successTitle: "धन्यवाद!",
+                successText: "तुमचा फॉलो-अप प्रतिसाद यशस्वीरित्या नोंदवला गेला.",
+                fillRequired: "कृपया सर्व आवश्यक फील्ड भरा.",
+                submitting: "सबमिट होत आहे..."
+            },
+            ta: {
+                headerTitle: "📋 பின்தொடர்தல் கேள்வித்தாள்",
+                headerSubtitle: "மருந்து எச்சரிக்கை பாதுகாப்பு கண்காணிப்பு",
+                langLabel: "🌐 மொழியைத் தேர்ந்தெடுக்கவும்:",
+                trustText: "🙏 உங்கள் ஆரோக்கியமும் நலனும் எங்களுக்கு முக்கியம். உங்கள் பதில்கள் முற்றிலும் இரகசியமானவை.",
+                infoTitle: "உங்கள் அறிக்கை தகவல்",
+                labelPatientId: "நோயாளி ஐடி",
+                labelMedication: "மருந்து",
+                labelReportDate: "அறிக்கை தேதி",
+                formIntroText: "🔒 உங்கள் பதில்கள் மருந்து பாதுகாப்பை மேம்படுத்த உதவுகின்றன.",
+                optionalText: "(விருப்பமானது)",
+                selectOption: "-- ஒரு விருப்பத்தைத் தேர்ந்தெடுக்கவும் --",
+                submitText: "பதிலை சமர்ப்பிக்கவும்",
+                privacyNote: "🔐 உங்கள் தகவல் மறையாக்கப்பட்டது மற்றும் தனியுரிமை விதிகளின்படி கையாளப்படுகிறது.",
+                successTitle: "நன்றி!",
+                successText: "உங்கள் பின்தொடர்தல் பதில் வெற்றிகரமாக பதிவு செய்யப்பட்டது.",
+                fillRequired: "அனைத்து தேவையான புலங்களையும் நிரப்பவும்.",
+                submitting: "சமர்ப்பிக்கிறது..."
+            },
+            gu: {
+                headerTitle: "📋 ફોલો-અપ પ્રશ્નાવલી",
+                headerSubtitle: "ફાર્માકોવિજિલન્સ સુરક્ષા દેખરેખ",
+                langLabel: "🌐 ભાષા પસંદ કરો:",
+                trustText: "🙏 અમે તમારા સ્વાસ્થ્ય અને કલ્યાણની કાળજી રાખીએ છીએ। તમારા પ્રતિસાદો સંપૂર્ણપણે ગોપનીય છે.",
+                infoTitle: "તમારી રિપોર્ટની માહિતી",
+                labelPatientId: "દર્દી ID",
+                labelMedication: "દવા",
+                labelReportDate: "રિપોર્ટની તારીખ",
+                formIntroText: "🔒 તમારા પ્રતિસાદો દવાની સુરક્ષા સુધારવામાં મદદ કરે છે.",
+                optionalText: "(વૈકલ્પિક)",
+                selectOption: "-- એક વિકલ્પ પસંદ કરો --",
+                submitText: "પ્રતિસાદ સબમિટ કરો",
+                privacyNote: "🔐 તમારી માહિતી એન્ક્રિપ્ટેડ છે અને ગોપનીયતા નિયમો અનુસાર સંભાળવામાં આવે છે.",
+                successTitle: "આભાર!",
+                successText: "તમારો ફોલો-અપ પ્રતિસાદ સફળતાપૂર્વક રેકોર્ડ થયો.",
+                fillRequired: "કૃપા કરીને બધા જરૂરી ફીલ્ડ્સ ભરો.",
+                submitting: "સબમિટ થઈ રહ્યું છે..."
+            },
+            kn: {
+                headerTitle: "📋 ಫಾಲೋ-ಅಪ್ ಪ್ರಶ್ನಾವಳಿ",
+                headerSubtitle: "ಫಾರ್ಮಾಕೋವಿಜಿಲೆನ್ಸ್ ಸುರಕ್ಷತಾ ಮೇಲ್ವಿಚಾರಣೆ",
+                langLabel: "🌐 ಭಾಷೆಯನ್ನು ಆಯ್ಕೆಮಾಡಿ:",
+                trustText: "🙏 ನಾವು ನಿಮ್ಮ ಆರೋಗ್ಯ ಮತ್ತು ಯೋಗಕ್ಷೇಮದ ಬಗ್ಗೆ ಕಾಳಜಿ ವಹಿಸುತ್ತೇವೆ। ನಿಮ್ಮ ಪ್ರತಿಕ್ರಿಯೆಗಳು ಸಂಪೂರ್ಣ ಗೌಪ್ಯ.",
+                infoTitle: "ನಿಮ್ಮ ವರದಿ ಮಾಹಿತಿ",
+                labelPatientId: "ರೋಗಿ ID",
+                labelMedication: "ಔಷಧಿ",
+                labelReportDate: "ವರದಿ ದಿನಾಂಕ",
+                formIntroText: "🔒 ನಿಮ್ಮ ಪ್ರತಿಕ್ರಿಯೆಗಳು ಔಷಧ ಸುರಕ್ಷತೆಯನ್ನು ಸುಧಾರಿಸಲು ಸಹಾಯ ಮಾಡುತ್ತವೆ.",
+                optionalText: "(ಐಚ್ಛಿಕ)",
+                selectOption: "-- ಒಂದು ಆಯ್ಕೆಯನ್ನು ಆರಿಸಿ --",
+                submitText: "ಪ್ರತಿಕ್ರಿಯೆ ಸಲ್ಲಿಸಿ",
+                privacyNote: "🔐 ನಿಮ್ಮ ಮಾಹಿತಿಯನ್ನು ಎನ್‌ಕ್ರಿಪ್ಟ್ ಮಾಡಲಾಗಿದೆ ಮತ್ತು ಗೌಪ್ಯತಾ ನಿಯಮಗಳ ಪ್ರಕಾರ ನಿರ್ವಹಿಸಲಾಗುತ್ತದೆ.",
+                successTitle: "ಧನ್ಯವಾದಗಳು!",
+                successText: "ನಿಮ್ಮ ಫಾಲೋ-ಅಪ್ ಪ್ರತಿಕ್ರಿಯೆ ಯಶಸ್ವಿಯಾಗಿ ದಾಖಲಾಗಿದೆ.",
+                fillRequired: "ದಯವಿಟ್ಟು ಎಲ್ಲಾ ಅಗತ್ಯ ಕ್ಷೇತ್ರಗಳನ್ನು ಭರ್ತಿ ಮಾಡಿ.",
+                submitting: "ಸಲ್ಲಿಸಲಾಗುತ್ತಿದೆ..."
+            },
+            ml: {
+                headerTitle: "📋 ഫോളോ-അപ്പ് ചോദ്യാവലി",
+                headerSubtitle: "ഫാർമക്കോവിജിലൻസ് സുരക്ഷാ നിരീക്ഷണം",
+                langLabel: "🌐 ഭാഷ തിരഞ്ഞെടുക്കുക:",
+                trustText: "🙏 നിങ്ങളുടെ ആരോഗ്യവും ക്ഷേമവും ഞങ്ങൾക്ക് പ്രധാനമാണ്। നിങ്ങളുടെ പ്രതികരണങ്ങൾ പൂർണ്ണമായും രഹസ്യമാണ്.",
+                infoTitle: "നിങ്ങളുടെ റിപ്പോർട്ട് വിവരങ്ങൾ",
+                labelPatientId: "രോഗി ID",
+                labelMedication: "മരുന്ന്",
+                labelReportDate: "റിപ്പോർട്ട് തീയതി",
+                formIntroText: "🔒 നിങ്ങളുടെ പ്രതികരണങ്ങൾ മരുന്ന് സുരക്ഷ മെച്ചപ്പെടുത്താൻ സഹായിക്കുന്നു.",
+                optionalText: "(ഓപ്ഷണൽ)",
+                selectOption: "-- ഒരു ഓപ്ഷൻ തിരഞ്ഞെടുക്കുക --",
+                submitText: "പ്രതികരണം സമർപ്പിക്കുക",
+                privacyNote: "🔐 നിങ്ങളുടെ വിവരങ്ങൾ എൻക്രിപ്റ്റ് ചെയ്‌തിരിക്കുന്നു, സ്വകാര്യതാ നിയമങ്ങൾ അനുസരിച്ച് കൈകാര്യം ചെയ്യുന്നു.",
+                successTitle: "നന്ദി!",
+                successText: "നിങ്ങളുടെ ഫോളോ-അപ്പ് പ്രതികരണം വിജയകരമായി രേഖപ്പെടുത്തി.",
+                fillRequired: "എല്ലാ ആവശ്യമായ ഫീൽഡുകളും പൂരിപ്പിക്കുക.",
+                submitting: "സമർപ്പിക്കുന്നു..."
+            },
+            pa: {
+                headerTitle: "📋 ਫਾਲੋ-ਅੱਪ ਪ੍ਰਸ਼ਨਾਵਲੀ",
+                headerSubtitle: "ਫਾਰਮਾਕੋਵਿਜੀਲੈਂਸ ਸੁਰੱਖਿਆ ਨਿਗਰਾਨੀ",
+                langLabel: "🌐 ਭਾਸ਼ਾ ਚੁਣੋ:",
+                trustText: "🙏 ਅਸੀਂ ਤੁਹਾਡੀ ਸਿਹਤ ਅਤੇ ਭਲਾਈ ਦੀ ਪਰਵਾਹ ਕਰਦੇ ਹਾਂ। ਤੁਹਾਡੇ ਜਵਾਬ ਪੂਰੀ ਤਰ੍ਹਾਂ ਗੁਪਤ ਹਨ।",
+                infoTitle: "ਤੁਹਾਡੀ ਰਿਪੋਰਟ ਜਾਣਕਾਰੀ",
+                labelPatientId: "ਮਰੀਜ਼ ID",
+                labelMedication: "ਦਵਾਈ",
+                labelReportDate: "ਰਿਪੋਰਟ ਮਿਤੀ",
+                formIntroText: "🔒 ਤੁਹਾਡੇ ਜਵਾਬ ਦਵਾਈ ਸੁਰੱਖਿਆ ਨੂੰ ਬਿਹਤਰ ਬਣਾਉਣ ਵਿੱਚ ਮਦਦ ਕਰਦੇ ਹਨ।",
+                optionalText: "(ਵਿਕਲਪਿਕ)",
+                selectOption: "-- ਇੱਕ ਵਿਕਲਪ ਚੁਣੋ --",
+                submitText: "ਜਵਾਬ ਜਮ੍ਹਾਂ ਕਰੋ",
+                privacyNote: "🔐 ਤੁਹਾਡੀ ਜਾਣਕਾਰੀ ਐਨਕ੍ਰਿਪਟਡ ਹੈ ਅਤੇ ਗੋਪਨੀਯਤਾ ਨਿਯਮਾਂ ਅਨੁਸਾਰ ਸੰਭਾਲੀ ਜਾਂਦੀ ਹੈ।",
+                successTitle: "ਧੰਨਵਾਦ!",
+                successText: "ਤੁਹਾਡਾ ਫਾਲੋ-ਅੱਪ ਜਵਾਬ ਸਫਲਤਾਪੂਰਵਕ ਰਿਕਾਰਡ ਹੋ ਗਿਆ।",
+                fillRequired: "ਕਿਰਪਾ ਕਰਕੇ ਸਾਰੇ ਲੋੜੀਂਦੇ ਖੇਤਰ ਭਰੋ।",
+                submitting: "ਜਮ੍ਹਾਂ ਹੋ ਰਿਹਾ ਹੈ..."
+            },
+            or: {
+                headerTitle: "📋 ଫଲୋ-ଅପ୍ ପ୍ରଶ୍ନାବଳୀ",
+                headerSubtitle: "ଫାର୍ମାକୋଭିଜିଲାନ୍ସ ସୁରକ୍ଷା ନଜରଦାରି",
+                langLabel: "🌐 ଭାଷା ବାଛନ୍ତୁ:",
+                trustText: "🙏 ଆମେ ଆପଣଙ୍କ ସ୍ୱାସ୍ଥ୍ୟ ଏବଂ ମଙ୍ଗଳର ଯତ୍ନ ନେଉ। ଆପଣଙ୍କ ପ୍ରତିକ୍ରିୟା ସମ୍ପୂର୍ଣ୍ଣ ଗୋପନୀୟ।",
+                infoTitle: "ଆପଣଙ୍କ ରିପୋର୍ଟ ସୂଚନା",
+                labelPatientId: "ରୋଗୀ ID",
+                labelMedication: "ଔଷଧ",
+                labelReportDate: "ରିପୋର୍ଟ ତାରିଖ",
+                formIntroText: "🔒 ଆପଣଙ୍କ ପ୍ରତିକ୍ରିୟା ଔଷଧ ସୁରକ୍ଷା ଉନ୍ନତ କରିବାରେ ସାହାଯ୍ୟ କରେ।",
+                optionalText: "(ଐଚ୍ଛିକ)",
+                selectOption: "-- ଏକ ବିକଳ୍ପ ବାଛନ୍ତୁ --",
+                submitText: "ପ୍ରତିକ୍ରିୟା ଦାଖଲ କରନ୍ତୁ",
+                privacyNote: "🔐 ଆପଣଙ୍କ ସୂଚନା ଏନ୍‌କ୍ରିପ୍ଟ ହୋଇଛି ଏବଂ ଗୋପନୀୟତା ନିୟମ ଅନୁଯାୟୀ ପରିଚାଳିତ।",
+                successTitle: "ଧନ୍ୟବାଦ!",
+                successText: "ଆପଣଙ୍କ ଫଲୋ-ଅପ୍ ପ୍ରତିକ୍ରିୟା ସଫଳତାର ସହ ରେକର୍ଡ ହୋଇଛି।",
+                fillRequired: "ଦୟାକରି ସମସ୍ତ ଆବଶ୍ୟକ ଫିଲ୍ଡ ପୂରଣ କରନ୍ତୁ।",
+                submitting: "ଦାଖଲ ହେଉଛି..."
+            },
+            as: {
+                headerTitle: "📋 ফল'-আপ প্ৰশ্নাৱলী",
+                headerSubtitle: "ফাৰ্মাক'ভিজিলেন্স সুৰক্ষা নিৰীক্ষণ",
+                langLabel: "🌐 ভাষা বাছনি কৰক:",
+                trustText: "🙏 আমি আপোনাৰ স্বাস্থ্য আৰু মংগলৰ যত্ন লওঁ। আপোনাৰ প্ৰতিক্ৰিয়া সম্পূৰ্ণ গোপনীয়।",
+                infoTitle: "আপোনাৰ প্ৰতিবেদনৰ তথ্য",
+                labelPatientId: "ৰোগী ID",
+                labelMedication: "ঔষধ",
+                labelReportDate: "প্ৰতিবেদনৰ তাৰিখ",
+                formIntroText: "🔒 আপোনাৰ প্ৰতিক্ৰিয়াই ঔষধৰ সুৰক্ষা উন্নত কৰাত সহায় কৰে।",
+                optionalText: "(ঐচ্ছিক)",
+                selectOption: "-- এটা বিকল্প বাছক --",
+                submitText: "প্ৰতিক্ৰিয়া দাখিল কৰক",
+                privacyNote: "🔐 আপোনাৰ তথ্য এনক্ৰিপ্ট কৰা হৈছে আৰু গোপনীয়তা নীতি অনুসৰি পৰিচালিত।",
+                successTitle: "ধন্যবাদ!",
+                successText: "আপোনাৰ ফল'-আপ প্ৰতিক্ৰিয়া সফলতাৰে ৰেকৰ্ড হৈছে।",
+                fillRequired: "অনুগ্ৰহ কৰি সকলো প্ৰয়োজনীয় ক্ষেত্ৰ পূৰণ কৰক।",
+                submitting: "দাখিল হৈ আছে..."
+            },
+            ur: {
+                headerTitle: "📋 فالو اپ سوالنامہ",
+                headerSubtitle: "فارماکوویجیلنس سیفٹی مانیٹرنگ",
+                langLabel: "🌐 زبان منتخب کریں:",
+                trustText: "🙏 ہم آپ کی صحت اور بہبود کا خیال رکھتے ہیں۔ آپ کے جوابات مکمل طور پر خفیہ ہیں۔",
+                infoTitle: "آپ کی رپورٹ کی معلومات",
+                labelPatientId: "مریض ID",
+                labelMedication: "دوا",
+                labelReportDate: "رپورٹ کی تاریخ",
+                formIntroText: "🔒 آپ کے جوابات دوائیوں کی حفاظت کو بہتر بنانے میں مدد کرتے ہیں۔",
+                optionalText: "(اختیاری)",
+                selectOption: "-- ایک آپشن منتخب کریں --",
+                submitText: "جواب جمع کریں",
+                privacyNote: "🔐 آپ کی معلومات انکرپٹڈ ہیں اور رازداری کے قواعد کے مطابق سنبھالی جاتی ہیں۔",
+                successTitle: "شکریہ!",
+                successText: "آپ کا فالو اپ جواب کامیابی سے ریکارڈ ہو گیا۔",
+                fillRequired: "براہ کرم تمام ضروری فیلڈز بھریں۔",
+                submitting: "جمع ہو رہا ہے..."
+            }
+        };
+        
+        let currentLanguage = 'en';
+        
+        function changeLanguage(lang) {
+            currentLanguage = lang;
+            const t = translations[lang] || translations['en'];
+            
+            // Update all translatable elements
+            document.getElementById('headerTitle').textContent = t.headerTitle;
+            document.getElementById('headerSubtitle').textContent = t.headerSubtitle;
+            document.getElementById('langLabel').textContent = t.langLabel;
+            document.getElementById('trustText').textContent = t.trustText;
+            document.getElementById('infoTitle').textContent = t.infoTitle;
+            document.getElementById('labelPatientId').textContent = t.labelPatientId;
+            document.getElementById('labelMedication').textContent = t.labelMedication;
+            document.getElementById('labelReportDate').textContent = t.labelReportDate;
+            document.getElementById('formIntroText').textContent = t.formIntroText;
+            document.getElementById('submitText').textContent = t.submitText;
+            document.getElementById('privacyNote').textContent = t.privacyNote;
+            document.getElementById('successTitle').textContent = t.successTitle;
+            document.getElementById('successText').textContent = t.successText;
+            
+            // Update all optional text
+            document.querySelectorAll('.optional').forEach(el => {
+                el.textContent = t.optionalText;
+            });
+            
+            // Update all select default options
+            document.querySelectorAll('option[data-translate="selectOption"]').forEach(el => {
+                el.textContent = t.selectOption;
+            });
+            
+            // Store language preference
+            localStorage.setItem('preferredLanguage', lang);
+        }
+        
+        // Load saved language preference
+        window.addEventListener('DOMContentLoaded', function() {
+            const savedLang = localStorage.getItem('preferredLanguage');
+            if (savedLang && translations[savedLang]) {
+                document.getElementById('languageSelect').value = savedLang;
+                changeLanguage(savedLang);
+            }
+        });
+        
         async function submitForm() {
             const form = document.getElementById('followupForm');
             const submitBtn = document.getElementById('submitBtn');
+            const t = translations[currentLanguage] || translations['en'];
             
             // Validate required fields
             const requiredFields = form.querySelectorAll('[required]');
@@ -381,34 +635,31 @@
             });
             
             if (!isValid) {
-                alert('Please fill in all required fields.');
+                alert(t.fillRequired);
                 return;
             }
             
             // Collect form data
             const formData = new FormData(form);
-            const data = {};
+            const data = { language: currentLanguage };
             formData.forEach((value, key) => {
                 data[key] = value;
             });
             
             // Show loading state
             submitBtn.disabled = true;
-            submitBtn.innerHTML = '<span class="loading"></span> Submitting...';
+            submitBtn.innerHTML = '<span class="loading"></span> ' + t.submitting;
             
             try {
                 const response = await fetch(`/api/followup/submit/${patientId}/${token}`, {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(data)
                 });
                 
                 const result = await response.json();
                 
                 if (result.success) {
-                    // Hide form, show success
                     form.style.display = 'none';
                     document.querySelector('.submit-section').style.display = 'none';
                     document.querySelector('.form-intro')?.remove();
@@ -416,30 +667,26 @@
                     const successMsg = document.getElementById('successMessage');
                     successMsg.style.display = 'block';
                     
-                    // Show score improvement if available
                     if (result.scoring) {
                         const scoreDetails = document.getElementById('scoreDetails');
                         let details = [];
-                        
                         if (result.scoring.score_change > 0) {
                             details.push(`Case score improved by +${result.scoring.score_change}`);
                         }
-                        
                         details.push(`Completeness: ${result.scoring.completeness_score}%`);
                         details.push(`Strength Level: ${result.scoring.strength_level}`);
-                        
                         scoreDetails.innerHTML = details.join(' • ');
                     }
                 } else {
                     alert('Error: ' + (result.message || 'Failed to submit response'));
                     submitBtn.disabled = false;
-                    submitBtn.innerHTML = 'Submit Response';
+                    submitBtn.innerHTML = '<span id="submitText">' + t.submitText + '</span>';
                 }
             } catch (error) {
                 console.error('Submission error:', error);
                 alert('An error occurred. Please try again.');
                 submitBtn.disabled = false;
-                submitBtn.innerHTML = 'Submit Response';
+                submitBtn.innerHTML = '<span id="submitText">' + t.submitText + '</span>';
             }
         }
     </script>
